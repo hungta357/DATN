@@ -33,7 +33,7 @@
                 <img src="https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=1600"
                      class="w-100 h-100" style="object-fit: cover; opacity: 0.35;" alt="Banner 2">
                 <div class="carousel-caption text-start d-flex flex-column justify-content-center h-100" style="top:0; bottom:0;">
-                    <span class="badge bg-light text-danger align-self-start mb-2 px-3 py-2 oswald-font fs-6">ĐẶC QUYỀN THÀNH VIÊN BETA</span>
+                    <span class="badge bg-light text-danger align-self-start mb-2 px-3 py-2 oswald-font fs-6">ĐẶC QUYỀN THÀNH VIÊN CINENOW</span>
                     <h1 class="display-5 fw-bold text-white oswald-font text-uppercase mb-2">
                         THANH TOÁN VÍ NỘI BỘ • NHẬN VÉ QR CODE TRONG 3 GIÂY
                     </h1>

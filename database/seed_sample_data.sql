@@ -5,13 +5,13 @@
 
 USE cinema_complete;
 
--- Cap nhat thong tin 1 Rap chieu le duy nhat theo phong cach Beta Cinema
+-- Cap nhat thong tin 1 Rap chieu le duy nhat: CineNow
 UPDATE cinema_info
-SET name = 'Beta Cinema Giải Phóng',
+SET name = 'CineNow',
     address = 'Tầng 3, Tòa nhà Imperial Plaza, 360 Giải Phóng, Hà Nội',
     phone = '1900 636807',
-    email = 'cskh@betacinema.vn',
-    description = 'Rạp chiếu phim độc lập phong cách Beta Cinema trẻ trung, hiện đại với hệ thống 4 phòng chiếu tiêu chuẩn Hollywood và giá vé ưu đãi dành cho học sinh, sinh viên.',
+    email = 'cskh@cinenow.vn',
+    description = 'CineNow - Rạp chiếu phim độc lập trẻ trung, hiện đại với hệ thống phòng chiếu tiêu chuẩn Hollywood và giá vé ưu đãi dành cho học sinh, sinh viên.',
     updated_at = NOW()
 WHERE id = 1;
 

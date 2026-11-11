@@ -69,7 +69,7 @@
                     </div>
                     <div class="card-body p-4">
                         <div class="alert alert-info small mb-3">
-                            Số dư <strong>Ví Thành Viên Beta</strong> của bạn:
+                            Số dư <strong>Ví Thành Viên CineNow</strong> của bạn:
                             <strong class="text-danger"><?= number_format((float) $wallet['balance']) ?> <?= htmlspecialchars($wallet['currency']) ?></strong>
                             <a href="?route=wallet" class="ms-2 fw-bold">[Nạp thêm]</a>
                         </div>

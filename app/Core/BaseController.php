@@ -47,7 +47,8 @@ abstract class BaseController
     protected function requireAuth(): array
     {
         if (empty($_SESSION['user'])) {
-            $this->setFlash('warning', 'Vui lòng đăng nhập để tiếp tục.');
+            $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'] ?? '?route=home';
+            $this->setFlash('warning', 'Vui lòng đăng nhập để tiếp tục đặt vé.');
             $this->redirect('?route=auth/login');
         }
         return $_SESSION['user'];

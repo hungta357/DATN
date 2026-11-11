@@ -83,10 +83,10 @@ class UserModel extends BaseModel
         $stmt = $this->db->query("SELECT * FROM cinema_info WHERE id = 1 LIMIT 1");
         return $stmt->fetch() ?: [
             'id' => 1,
-            'name' => 'Cinema Booking',
+            'name' => 'CineNow',
             'address' => 'Chưa cập nhật địa chỉ',
-            'phone' => '1900 0000',
-            'email' => 'contact@cinema.vn',
+            'phone' => '1900 636807',
+            'email' => 'cskh@cinenow.vn',
         ];
     }
 

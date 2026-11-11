@@ -29,8 +29,11 @@ class AuthController extends BaseController
             unset($user['password']);
             $_SESSION['user'] = $user;
 
+            $redirectUrl = $_SESSION['redirect_after_login'] ?? '?route=home';
+            unset($_SESSION['redirect_after_login']);
+
             $this->setFlash('success', 'Xin chào, ' . htmlspecialchars($user['name']) . '!');
-            $this->redirect('?route=home');
+            $this->redirect($redirectUrl);
         }
 
         $this->view('auth/login', ['pageTitle' => 'Đăng nhập']);

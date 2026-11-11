@@ -3,7 +3,7 @@
         <div class="col-md-4">
             <div class="card border-0 shadow-sm bg-white rounded-4 overflow-hidden">
                 <div class="p-3 text-white oswald-font fs-5 text-uppercase" style="background: var(--beta-gradient);">
-                    <i class="bi bi-wallet2 me-1"></i> VÍ THÀNH VIÊN BETA
+                    <i class="bi bi-wallet2 me-1"></i> VÍ THÀNH VIÊN CINENOW
                 </div>
                 <div class="card-body p-4">
                     <div class="text-muted small">Số dư khả dụng</div>
@@ -16,7 +16,7 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label small fw-semibold">Ghi chú giao dịch</label>
-                            <input type="text" name="note" value="Nạp tiền vào ví thành viên Beta" class="form-control form-control-sm">
+                            <input type="text" name="note" value="Nạp tiền vào ví thành viên CineNow" class="form-control form-control-sm">
                         </div>
                         <button type="submit" class="btn btn-beta-buy w-100">
                             <i class="bi bi-plus-circle me-1"></i> NẠP TIỀN NGAY

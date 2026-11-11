@@ -45,7 +45,7 @@ try {
             (4, 'Vi noi bo', 'WALLET', 'Thanh toan bang so du vi');
 
             INSERT IGNORE INTO cinema_info (id, name, address, phone, email)
-            VALUES (1, 'Beta Cinema Giải Phóng', 'Tầng 3, Tòa nhà Imperial Plaza, 360 Giải Phóng, Hà Nội', '1900 636807', 'cskh@betacinema.vn');
+            VALUES (1, 'CineNow', 'Tầng 3, Tòa nhà Imperial Plaza, 360 Giải Phóng, Hà Nội', '1900 636807', 'cskh@cinenow.vn');
         ");
     }
 

@@ -283,7 +283,7 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
             <?php if (!empty($_SESSION['user'])): ?>
                 <a href="?route=booking/my"><i class="bi bi-ticket-perforated me-1"></i>Vé của tôi</a>
                 <span>|</span>
-                <a href="?route=wallet"><i class="bi bi-wallet2 me-1"></i>Ví Beta</a>
+                <a href="?route=wallet"><i class="bi bi-wallet2 me-1"></i>Ví CineNow</a>
                 <span>|</span>
                 <a href="?route=wishlist"><i class="bi bi-heart me-1"></i>Yêu thích</a>
                 <span>|</span>
@@ -308,7 +308,7 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
 <nav class="navbar navbar-expand-lg beta-navbar sticky-top">
     <div class="container">
         <a class="beta-logo-box me-4" href="?route=home">
-            <span class="beta-logo-mark">B</span>
+            <span class="beta-logo-mark">C</span>
             <div>
                 <div class="oswald-font fw-bold fs-4 lh-1" style="color: var(--beta-blue); letter-spacing: 0.5px;">
                     <?= htmlspecialchars(strtoupper($headerCinema['name'])) ?>
@@ -387,7 +387,7 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
         <div class="row g-4 align-items-center">
             <div class="col-md-5">
                 <div class="d-flex align-items-center gap-2 mb-2">
-                    <span class="beta-logo-mark" style="width:34px;height:34px;font-size:18px;">B</span>
+                    <span class="beta-logo-mark" style="width:34px;height:34px;font-size:18px;">C</span>
                     <h5 class="oswald-font fw-bold mb-0" style="color: var(--beta-blue);">
                         <?= htmlspecialchars(strtoupper($headerCinema['name'])) ?>
                     </h5>
@@ -395,7 +395,7 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
                 <p class="small text-muted mb-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i> Địa chỉ: <?= htmlspecialchars($headerCinema['address']) ?></p>
                 <p class="small text-muted mb-0">
                     <i class="bi bi-telephone-fill text-primary me-1"></i> Hotline: <?= htmlspecialchars($headerCinema['phone'] ?: '1900 636807') ?> |
-                    <i class="bi bi-envelope-fill text-primary ms-2 me-1"></i> <?= htmlspecialchars($headerCinema['email'] ?: 'cskh@betacinema.vn') ?>
+                    <i class="bi bi-envelope-fill text-primary ms-2 me-1"></i> <?= htmlspecialchars($headerCinema['email'] ?: 'cskh@cinenow.vn') ?>
                 </p>
             </div>
             <div class="col-md-4">

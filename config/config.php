@@ -2,7 +2,7 @@
 
 return [
     'app' => [
-        'name' => 'Cinema Booking System',
+        'name' => 'CineNow',
         'base_url' => 'http://localhost:8000',
         'timezone' => 'Asia/Ho_Chi_Minh',
         'hold_seat_minutes' => 10, // Thời gian giữ ghế (phút)
