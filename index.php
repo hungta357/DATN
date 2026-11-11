@@ -5,10 +5,10 @@ session_start();
 $config = require __DIR__ . '/config/config.php';
 date_default_timezone_set($config['app']['timezone'] ?? 'Asia/Ho_Chi_Minh');
 
-// PSR-4 style autoloader cho namespace App\
+// PSR-4 style autoloader cho namespace App\ (Thư mục backend/ tách riêng)
 spl_autoload_register(function (string $class): void {
     $prefix = 'App\\';
-    $baseDir = __DIR__ . '/app/';
+    $baseDir = __DIR__ . '/backend/';
 
     $len = strlen($prefix);
     if (strncmp($prefix, $class, $len) !== 0) {
@@ -24,6 +24,7 @@ spl_autoload_register(function (string $class): void {
 });
 
 use App\Controllers\AdminController;
+use App\Controllers\ApiController;
 use App\Controllers\AuthController;
 use App\Controllers\BookingController;
 use App\Controllers\HomeController;
@@ -142,6 +143,23 @@ switch ($route) {
         break;
     case 'admin/coupon/save':
         (new AdminController())->saveCoupon();
+        break;
+
+    // --- REST API CHO REACT FRONTEND & ADMIN ANALYTICS ---
+    case 'api/movies':
+        (new ApiController())->movies();
+        break;
+    case 'api/coupon/check':
+        (new ApiController())->checkCoupon();
+        break;
+    case 'api/admin/stats':
+        (new ApiController())->adminStats();
+        break;
+    case 'api/admin/checkin':
+        (new ApiController())->adminCheckIn();
+        break;
+    case 'frontend/js':
+        (new ApiController())->serveFrontendJs();
         break;
 
     default:

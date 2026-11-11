@@ -7,7 +7,7 @@ abstract class BaseController
     protected function view(string $viewPath, array $data = [], ?string $layout = 'layouts/main'): void
     {
         extract($data);
-        $viewFile = __DIR__ . '/../Views/' . $viewPath . '.php';
+        $viewFile = __DIR__ . '/../../frontend/views/' . $viewPath . '.php';
 
         if (!file_exists($viewFile)) {
             die("View không tồn tại: {$viewPath}");
@@ -22,7 +22,7 @@ abstract class BaseController
         require $viewFile;
         $content = ob_get_clean();
 
-        require __DIR__ . '/../Views/' . $layout . '.php';
+        require __DIR__ . '/../../frontend/views/' . $layout . '.php';
     }
 
     protected function json(array $payload, int $statusCode = 200): void

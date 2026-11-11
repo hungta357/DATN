@@ -2,17 +2,27 @@
 
 Bộ base code được xây dựng theo mô hình **PHP MVC (PDO + MySQL 8.0)** bám sát toàn bộ **7 nhánh bảng và 5 lưu ý nghiệp vụ** trong file [`database/cinema_complete.sql`](./database/cinema_complete.sql).
 
+## Cấu trúc Phân chia `backend/` (PHP) và `frontend/` (React)
+
+- **`backend/` (PHP Backend & REST API):**
+  - `backend/Core/`: `Database.php`, `BaseModel.php`, `BaseController.php`
+  - `backend/Models/`: `UserModel.php`, `MovieModel.php`, `RoomModel.php`, `ShowModel.php`, `BookingModel.php`, `PaymentWalletModel.php`, `EngagementModel.php`
+  - `backend/Controllers/`: `ApiController.php`, `AdminController.php`, `AuthController.php`, `HomeController.php`, `BookingController.php`, `WalletController.php`
+- **`frontend/` (React 18 Components & Giao diện):**
+  - `frontend/react/`: `AdminAnalyticsApp.js` (Thống kê chi tiết Admin), `CustomerMovieApp.js` (Khám phá phim & đặt vé nhanh), `SeatCouponApp.js` (Chọn ghế & kiểm tra mã giảm giá realtime)
+  - `frontend/views/`: Giao diện khách hàng (`layouts/main.php`, `home/`, `booking/`, `auth/`, `wallet/`) và giao diện Quản trị riêng biệt (`layouts/admin.php`, `admin/dashboard.php`)
+
 ## Cấu trúc 7 Nhánh Chính trong Code
 
 | Nhánh Database | Các bảng trong MySQL | Model xử lý | Controller xử lý |
 | :--- | :--- | :--- | :--- |
-| **1. Roles / Users / Cinema Info** | `roles`, `users`, `user_roles`, `cinema_info` | `app/Models/UserModel.php` | `AuthController`, `AdminController` |
-| **2. Movies / Genres** | `movies`, `genres`, `movie_genres` | `app/Models/MovieModel.php` | `HomeController`, `AdminController` |
-| **3. Rooms / Seats / Seat Types** | `rooms`, `seat_types`, `seats` | `app/Models/RoomModel.php` | `AdminController` |
-| **4. Shows / Show Seats Inventory** | `shows`, `show_seats` | `app/Models/ShowModel.php` | `BookingController`, `AdminController` |
-| **5. Bookings / Details / Tickets** | `bookings`, `booking_details`, `tickets` | `app/Models/BookingModel.php` | `BookingController`, `AdminController` |
-| **6. Payments / Methods / Wallets** | `payment_methods`, `payments`, `wallets`, `wallet_transactions` | `app/Models/PaymentWalletModel.php` | `BookingController`, `WalletController` |
-| **7. Concessions / Coupons / Reviews / Wishlists / Notifications** | `concessions`, `booking_concessions`, `coupons`, `coupon_usages`, `reviews`, `wishlists`, `notifications` | `app/Models/EngagementModel.php` | `HomeController`, `BookingController`, `AdminController` |
+| **1. Roles / Users / Cinema Info** | `roles`, `users`, `user_roles`, `cinema_info` | `backend/Models/UserModel.php` | `AuthController`, `AdminController` |
+| **2. Movies / Genres** | `movies`, `genres`, `movie_genres` | `backend/Models/MovieModel.php` | `HomeController`, `AdminController`, `ApiController` |
+| **3. Rooms / Seats / Seat Types** | `rooms`, `seat_types`, `seats` | `backend/Models/RoomModel.php` | `AdminController` |
+| **4. Shows / Show Seats Inventory** | `shows`, `show_seats` | `backend/Models/ShowModel.php` | `BookingController`, `AdminController` |
+| **5. Bookings / Details / Tickets** | `bookings`, `booking_details`, `tickets` | `backend/Models/BookingModel.php` | `BookingController`, `AdminController`, `ApiController` |
+| **6. Payments / Methods / Wallets** | `payment_methods`, `payments`, `wallets`, `wallet_transactions` | `backend/Models/PaymentWalletModel.php` | `BookingController`, `WalletController` |
+| **7. Concessions / Coupons / Reviews / Wishlists / Notifications** | `concessions`, `booking_concessions`, `coupons`, `coupon_usages`, `reviews`, `wishlists`, `notifications` | `backend/Models/EngagementModel.php` | `HomeController`, `BookingController`, `AdminController`, `ApiController` |
 
 ---
 
@@ -37,8 +47,8 @@ Bộ base code được xây dựng theo mô hình **PHP MVC (PDO + MySQL 8.0)**
    ```
    Sau đó mở trình duyệt tại `http://localhost:8000`.
 
-### Tài khoản mẫu (sau khi chạy `setup.php` hoặc `seed_sample_data.sql`)
-- **Admin:** `admin@cinema.vn` / Mật khẩu: `password`
-- **Staff (Soát vé):** `staff@cinema.vn` / Mật khẩu: `password`
-- **Customer (Khách hàng - có sẵn 500.000đ trong Ví nội bộ):** `customer@cinema.vn` / Mật khẩu: `password`
+### Tài khoản mặc định
+- **Admin (Quản trị viên):** `admin@cinema.vn` (hoặc `admin`) / Mật khẩu riêng: `admin123` (khi đăng nhập tại `?route=auth/login` sẽ tự động chuyển vào trang Quản trị riêng `?route=admin`)
+- **Staff (Nhân viên soát vé):** `staff@cinema.vn` / Mật khẩu: `password`
+- **Customer (Khách hàng):** `customer@cinema.vn` / Mật khẩu: `password`
 

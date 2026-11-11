@@ -14,6 +14,9 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- React 18 Frontend Core -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <style>
         :root {
             --beta-blue: #03599d;
@@ -179,10 +182,10 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
         </a>
 
         <ul class="admin-nav-list">
-            <li class="admin-nav-label">Bảng điều khiển</li>
+            <li class="admin-nav-label">Thống kê & Điều hành</li>
             <li>
                 <a href="?route=admin&tab=overview" class="admin-nav-link <?= $currentTab === 'overview' ? 'active' : '' ?>">
-                    <i class="bi bi-speedometer2"></i> Tổng quan hệ thống
+                    <i class="bi bi-bar-chart-line-fill"></i> Thống kê chi tiết & Doanh thu
                 </a>
             </li>
 

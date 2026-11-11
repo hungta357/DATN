@@ -53,11 +53,11 @@ try {
     $seedSql = file_get_contents(__DIR__ . '/database/seed_sample_data.sql');
     $pdo->exec($seedSql);
 
-    // 4. Autoload models để tạo ghế mẫu & suất chiếu mẫu
-    require_once __DIR__ . '/app/Core/Database.php';
-    require_once __DIR__ . '/app/Core/BaseModel.php';
-    require_once __DIR__ . '/app/Models/RoomModel.php';
-    require_once __DIR__ . '/app/Models/ShowModel.php';
+    // 4. Autoload models từ thư mục backend/ để tạo ghế mẫu & suất chiếu mẫu
+    require_once __DIR__ . '/backend/Core/Database.php';
+    require_once __DIR__ . '/backend/Core/BaseModel.php';
+    require_once __DIR__ . '/backend/Models/RoomModel.php';
+    require_once __DIR__ . '/backend/Models/ShowModel.php';
 
     $roomModel = new \App\Models\RoomModel();
     $roomModel->generateDefaultSeatsForRoom(1);

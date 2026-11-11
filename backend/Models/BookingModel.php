@@ -377,5 +377,283 @@ class BookingModel extends BaseModel
         $ticket['checked_in_at'] = date('Y-m-d H:i:s');
         return $ticket;
     }
+
+    /**
+     * THỐNG KÊ CHI TIẾT TOÀN HỆ THỐNG DÀNH CHO ADMIN (REACT ANALYTICS DASHBOARD)
+     * Tương thích 100% với MySQL 8.0 ONLY_FULL_GROUP_BY
+     */
+    public function getDetailedAnalytics(): array
+    {
+        $safeQueryRow = function (string $sql, array $default = []): array {
+            try {
+                $res = $this->db->query($sql)->fetch();
+                return $res ?: $default;
+            } catch (\Throwable $e) {
+                return $default;
+            }
+        };
+
+        $safeQueryAll = function (string $sql): array {
+            try {
+                return $this->db->query($sql)->fetchAll() ?: [];
+            } catch (\Throwable $e) {
+                return [];
+            }
+        };
+
+        // 1. Tổng hợp doanh thu & đơn vé
+        $summary = $safeQueryRow("
+            SELECT 
+                COUNT(*) AS total_bookings,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END), 0) AS confirmed_bookings,
+                COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_bookings,
+                COALESCE(SUM(CASE WHEN status IN ('cancelled', 'expired', 'refunded') THEN 1 ELSE 0 END), 0) AS cancelled_bookings,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN total_amount ELSE 0 END), 0) AS total_revenue,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN subtotal ELSE 0 END), 0) AS ticket_revenue,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN concession_total ELSE 0 END), 0) AS concession_revenue,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN discount_amount ELSE 0 END), 0) AS total_discount
+            FROM bookings
+        ");
+
+        // Tổng số vé bán ra (lượng khách xem) & số vé đã check-in tại rạp
+        $ticketStats = $safeQueryRow("
+            SELECT 
+                COUNT(bd.id) AS total_viewers,
+                COALESCE(SUM(CASE WHEN t.status = 'used' THEN 1 ELSE 0 END), 0) AS checked_in_tickets
+            FROM booking_details bd
+            INNER JOIN bookings b ON b.id = bd.booking_id AND b.status = 'confirmed'
+            LEFT JOIN tickets t ON t.booking_detail_id = bd.id
+        ");
+
+        // Tỷ lệ lấp đầy ghế toàn rạp
+        $seatOcc = $safeQueryRow("
+            SELECT 
+                COUNT(*) AS total_show_seats,
+                COALESCE(SUM(CASE WHEN status = 'booked' THEN 1 ELSE 0 END), 0) AS booked_seats,
+                COALESCE(SUM(CASE WHEN status = 'held' THEN 1 ELSE 0 END), 0) AS held_seats
+            FROM show_seats
+        ");
+        $totalShowSeats = (int) ($seatOcc['total_show_seats'] ?? 0);
+        $bookedSeats = (int) ($seatOcc['booked_seats'] ?? 0);
+        $occupancyRate = $totalShowSeats > 0 ? round(($bookedSeats / $totalShowSeats) * 100, 1) : 0;
+
+        // Tổng số khách hàng & tổng số dư ví
+        $uwStats = $safeQueryRow("
+            SELECT 
+                (SELECT COUNT(*) FROM users) AS total_users,
+                COALESCE((SELECT SUM(balance) FROM wallets), 0) AS total_wallet_balance
+        ");
+
+        // 2. Doanh thu & lượng khách theo ngày (Tương thích ONLY_FULL_GROUP_BY)
+        $dailyRows = array_reverse($safeQueryAll("
+            SELECT 
+                d.report_date,
+                d.bookings_count,
+                d.total_revenue,
+                d.ticket_revenue,
+                d.concession_revenue,
+                COALESCE(v.viewers_count, 0) AS viewers_count
+            FROM (
+                SELECT 
+                    DATE(booking_time) AS report_date,
+                    COUNT(id) AS bookings_count,
+                    COALESCE(SUM(CASE WHEN status = 'confirmed' THEN total_amount ELSE 0 END), 0) AS total_revenue,
+                    COALESCE(SUM(CASE WHEN status = 'confirmed' THEN subtotal ELSE 0 END), 0) AS ticket_revenue,
+                    COALESCE(SUM(CASE WHEN status = 'confirmed' THEN concession_total ELSE 0 END), 0) AS concession_revenue
+                FROM bookings
+                GROUP BY DATE(booking_time)
+            ) d
+            LEFT JOIN (
+                SELECT 
+                    DATE(b2.booking_time) AS report_date,
+                    COUNT(bd2.id) AS viewers_count
+                FROM booking_details bd2
+                INNER JOIN bookings b2 ON b2.id = bd2.booking_id
+                WHERE b2.status = 'confirmed'
+                GROUP BY DATE(b2.booking_time)
+            ) v ON v.report_date = d.report_date
+            ORDER BY d.report_date DESC
+            LIMIT 14
+        "));
+
+        // 3. Thống kê chi tiết theo từng Bộ Phim
+        $movieStats = $safeQueryAll("
+            SELECT 
+                m.id,
+                m.title,
+                m.title_vi,
+                m.poster_path,
+                m.status,
+                m.imdb_rating,
+                (SELECT COUNT(*) FROM shows sh WHERE sh.movie_id = m.id) AS show_count,
+                COALESCE((
+                    SELECT COUNT(bd.id)
+                    FROM booking_details bd
+                    INNER JOIN bookings b ON b.id = bd.booking_id AND b.status = 'confirmed'
+                    INNER JOIN shows sh2 ON sh2.id = b.show_id
+                    WHERE sh2.movie_id = m.id
+                ), 0) AS tickets_sold,
+                COALESCE((
+                    SELECT COUNT(t.id)
+                    FROM tickets t
+                    INNER JOIN booking_details bd ON bd.id = t.booking_detail_id
+                    INNER JOIN bookings b ON b.id = bd.booking_id AND b.status = 'confirmed'
+                    INNER JOIN shows sh2 ON sh2.id = b.show_id
+                    WHERE sh2.movie_id = m.id AND t.status = 'used'
+                ), 0) AS checked_in_count,
+                COALESCE((
+                    SELECT COUNT(ss.id)
+                    FROM show_seats ss
+                    INNER JOIN shows sh3 ON sh3.id = ss.show_id
+                    WHERE sh3.movie_id = m.id
+                ), 0) AS total_capacity,
+                COALESCE((
+                    SELECT SUM(b.subtotal)
+                    FROM bookings b
+                    INNER JOIN shows sh4 ON sh4.id = b.show_id
+                    WHERE sh4.movie_id = m.id AND b.status = 'confirmed'
+                ), 0) AS ticket_revenue,
+                COALESCE((
+                    SELECT SUM(b.total_amount)
+                    FROM bookings b
+                    INNER JOIN shows sh5 ON sh5.id = b.show_id
+                    WHERE sh5.movie_id = m.id AND b.status = 'confirmed'
+                ), 0) AS total_revenue
+            FROM movies m
+            ORDER BY total_revenue DESC, tickets_sold DESC, m.id DESC
+        ");
+        foreach ($movieStats as &$ms) {
+            $cap = (int) ($ms['total_capacity'] ?? 0);
+            $sold = (int) ($ms['tickets_sold'] ?? 0);
+            $ms['occupancy_rate'] = $cap > 0 ? round(($sold / $cap) * 100, 1) : 0;
+        }
+        unset($ms);
+
+        // 4. Thống kê theo Phòng chiếu
+        $roomStats = $safeQueryAll("
+            SELECT 
+                r.id,
+                r.name,
+                r.room_type,
+                r.capacity,
+                (SELECT COUNT(*) FROM shows sh WHERE sh.room_id = r.id) AS show_count,
+                COALESCE((
+                    SELECT COUNT(bd.id)
+                    FROM booking_details bd
+                    INNER JOIN bookings b ON b.id = bd.booking_id AND b.status = 'confirmed'
+                    INNER JOIN shows sh2 ON sh2.id = b.show_id
+                    WHERE sh2.room_id = r.id
+                ), 0) AS tickets_sold,
+                COALESCE((
+                    SELECT COUNT(ss.id)
+                    FROM show_seats ss
+                    INNER JOIN shows sh3 ON sh3.id = ss.show_id
+                    WHERE sh3.room_id = r.id
+                ), 0) AS total_show_seats,
+                COALESCE((
+                    SELECT SUM(b.total_amount)
+                    FROM bookings b
+                    INNER JOIN shows sh4 ON sh4.id = b.show_id
+                    WHERE sh4.room_id = r.id AND b.status = 'confirmed'
+                ), 0) AS revenue
+            FROM rooms r
+            ORDER BY revenue DESC, r.id ASC
+        ");
+        foreach ($roomStats as &$rs) {
+            $totSeats = (int) ($rs['total_show_seats'] ?? 0);
+            $sold = (int) ($rs['tickets_sold'] ?? 0);
+            $rs['occupancy_rate'] = $totSeats > 0 ? round(($sold / $totSeats) * 100, 1) : 0;
+        }
+        unset($rs);
+
+        // 5. Thống kê theo Phương thức Thanh toán
+        $paymentStats = $safeQueryAll("
+            SELECT 
+                pm.id,
+                pm.name AS method_name,
+                pm.code AS method_code,
+                (SELECT COUNT(*) FROM payments p WHERE p.payment_method_id = pm.id AND p.status = 'success') AS tx_count,
+                COALESCE((SELECT SUM(p2.amount) FROM payments p2 WHERE p2.payment_method_id = pm.id AND p2.status = 'success'), 0) AS total_amount
+            FROM payment_methods pm
+            ORDER BY total_amount DESC, pm.id ASC
+        ");
+
+        // 6. Thống kê Combo Bắp nước bán chạy
+        $concessionStats = $safeQueryAll("
+            SELECT 
+                c.id,
+                c.name,
+                c.category,
+                c.price,
+                c.stock,
+                COALESCE((
+                    SELECT SUM(bc.quantity)
+                    FROM booking_concessions bc
+                    INNER JOIN bookings b ON b.id = bc.booking_id AND b.status = 'confirmed'
+                    WHERE bc.concession_id = c.id
+                ), 0) AS sold_qty,
+                COALESCE((
+                    SELECT SUM(bc.line_total)
+                    FROM booking_concessions bc
+                    INNER JOIN bookings b ON b.id = bc.booking_id AND b.status = 'confirmed'
+                    WHERE bc.concession_id = c.id
+                ), 0) AS revenue
+            FROM concessions c
+            ORDER BY sold_qty DESC, revenue DESC
+        ");
+
+        // 7. Top Khách hàng đặt vé & chi tiêu cao nhất
+        $topCustomers = $safeQueryAll("
+            SELECT 
+                u.id,
+                u.name,
+                u.email,
+                u.phone,
+                COALESCE((SELECT w.balance FROM wallets w WHERE w.user_id = u.id LIMIT 1), 0) AS wallet_balance,
+                (SELECT COUNT(*) FROM bookings b WHERE b.user_id = u.id AND b.status = 'confirmed') AS bookings_count,
+                COALESCE((
+                    SELECT COUNT(bd.id)
+                    FROM booking_details bd
+                    INNER JOIN bookings b2 ON b2.id = bd.booking_id
+                    WHERE b2.user_id = u.id AND b2.status = 'confirmed'
+                ), 0) AS tickets_bought,
+                COALESCE((
+                    SELECT SUM(b3.total_amount)
+                    FROM bookings b3
+                    WHERE b3.user_id = u.id AND b3.status = 'confirmed'
+                ), 0) AS total_spent
+            FROM users u
+            ORDER BY total_spent DESC, tickets_bought DESC
+            LIMIT 10
+        ");
+
+        return [
+            'generated_at' => date('H:i:s d/m/Y'),
+            'summary' => [
+                'total_revenue' => (float) ($summary['total_revenue'] ?? 0),
+                'ticket_revenue' => (float) ($summary['ticket_revenue'] ?? 0),
+                'concession_revenue' => (float) ($summary['concession_revenue'] ?? 0),
+                'total_discount' => (float) ($summary['total_discount'] ?? 0),
+                'total_bookings' => (int) ($summary['total_bookings'] ?? 0),
+                'confirmed_bookings' => (int) ($summary['confirmed_bookings'] ?? 0),
+                'pending_bookings' => (int) ($summary['pending_bookings'] ?? 0),
+                'cancelled_bookings' => (int) ($summary['cancelled_bookings'] ?? 0),
+                'total_viewers' => (int) ($ticketStats['total_viewers'] ?? 0),
+                'checked_in_tickets' => (int) ($ticketStats['checked_in_tickets'] ?? 0),
+                'total_show_seats' => $totalShowSeats,
+                'booked_seats' => $bookedSeats,
+                'held_seats' => (int) ($seatOcc['held_seats'] ?? 0),
+                'occupancy_rate' => $occupancyRate,
+                'total_users' => (int) ($uwStats['total_users'] ?? 0),
+                'total_wallet_balance' => (float) ($uwStats['total_wallet_balance'] ?? 0),
+            ],
+            'daily_revenue' => $dailyRows,
+            'movie_stats' => $movieStats,
+            'room_stats' => $roomStats,
+            'payment_stats' => $paymentStats,
+            'concession_stats' => $concessionStats,
+            'top_customers' => $topCustomers,
+        ];
+    }
 }
 

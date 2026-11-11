@@ -1,6 +1,6 @@
 <div>
     <ul class="nav nav-pills mb-4 gap-2">
-        <li class="nav-item"><a class="nav-link <?= $tab === 'overview' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=overview">Tổng quan</a></li>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'overview' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=overview"><i class="bi bi-bar-chart-fill me-1"></i>Thống kê chi tiết & Tổng quan</a></li>
         <li class="nav-item"><a class="nav-link <?= $tab === 'users' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=users">1. Rạp, Users & Mật khẩu Admin</a></li>
         <li class="nav-item"><a class="nav-link <?= $tab === 'movies' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=movies">2. Phim & Thể loại</a></li>
         <li class="nav-item"><a class="nav-link <?= $tab === 'rooms' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=rooms">3. Phòng & Ghế</a></li>
@@ -10,41 +10,44 @@
     </ul>
 
     <?php if ($tab === 'overview'): ?>
-        <div class="row g-3 mb-4">
-            <div class="col-md-3">
-                <div class="card border-0 shadow-sm p-3 bg-white">
-                    <div class="text-muted small">Nhánh 1: Người dùng</div>
-                    <h3 class="fw-bold text-primary mb-0"><?= count($users) ?> tài khoản</h3>
+        <?php $sum = $analytics['summary'] ?? []; ?>
+        <!-- TRUNG TÂM THỐNG KÊ CHI TIẾT BẰNG REACT 18 (frontend/react/AdminAnalyticsApp.js) + PHP BACKEND API -->
+        <div id="react-admin-analytics-root">
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-3 bg-white border-start border-4 border-success">
+                        <div class="text-muted small fw-semibold text-uppercase">Tổng Thu Nhập Thực Tế</div>
+                        <h3 class="fw-bold text-success mb-1"><?= number_format((float) ($sum['total_revenue'] ?? 0)) ?>đ</h3>
+                        <div class="small text-secondary">Vé: <?= number_format((float) ($sum['ticket_revenue'] ?? 0)) ?>đ | Bắp nước: <?= number_format((float) ($sum['concession_revenue'] ?? 0)) ?>đ</div>
+                    </div>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-0 shadow-sm p-3 bg-white">
-                    <div class="text-muted small">Nhánh 2: Phim</div>
-                    <h3 class="fw-bold text-danger mb-0"><?= count($movies) ?> bộ phim</h3>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-3 bg-white border-start border-4 border-primary">
+                        <div class="text-muted small fw-semibold text-uppercase">Tổng Lượng Khách Xem</div>
+                        <h3 class="fw-bold text-primary mb-1"><?= number_format((int) ($sum['total_viewers'] ?? 0)) ?> khách</h3>
+                        <div class="small text-secondary">Đã soát QR: <?= (int) ($sum['checked_in_tickets'] ?? 0) ?> vé</div>
+                    </div>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-0 shadow-sm p-3 bg-white">
-                    <div class="text-muted small">Nhánh 3 & 4: Phòng / Suất chiếu</div>
-                    <h3 class="fw-bold text-warning mb-0"><?= count($rooms) ?> phòng / <?= count($shows) ?> suất</h3>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-3 bg-white border-start border-4 border-warning">
+                        <div class="text-muted small fw-semibold text-uppercase">Tỷ Lệ Lấp Đầy Ghế</div>
+                        <h3 class="fw-bold text-warning mb-1"><?= (float) ($sum['occupancy_rate'] ?? 0) ?>%</h3>
+                        <div class="small text-secondary">Đã đặt: <?= (int) ($sum['booked_seats'] ?? 0) ?> / <?= (int) ($sum['total_show_seats'] ?? 0) ?> ghế</div>
+                    </div>
                 </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card border-0 shadow-sm p-3 bg-white">
-                    <div class="text-muted small">Nhánh 5 & 6: Đơn đặt vé</div>
-                    <h3 class="fw-bold text-success mb-0"><?= count($bookings) ?> đơn</h3>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-3 bg-white border-start border-4 border-info">
+                        <div class="text-muted small fw-semibold text-uppercase">Thành Viên & Ví Nội Bộ</div>
+                        <h3 class="fw-bold text-info mb-1"><?= (int) ($sum['total_users'] ?? count($users)) ?> tài khoản</h3>
+                        <div class="small text-secondary">Tổng số dư Ví: <?= number_format((float) ($sum['total_wallet_balance'] ?? 0)) ?>đ</div>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="card border-0 shadow-sm p-4 bg-white">
-            <h6 class="fw-bold" style="color: var(--beta-blue);">Các quy tắc nghiệp vụ cốt lõi từ <code>cinema_complete.sql</code> đã được cài đặt sẵn:</h6>
-            <ul class="small mb-0">
-                <li><strong>Quy tắc 1:</strong> Khi tạo Suất chiếu (<code>shows</code>), hệ thống tự động tạo đầy đủ các dòng <code>show_seats</code> từ danh sách <code>seats</code> của phòng cộng phụ thu <code>seat_types.surcharge</code>.</li>
-                <li><strong>Quy tắc 2:</strong> Khi khách giữ ghế, sử dụng <code>DB Transaction + SELECT ... FOR UPDATE</code>, kiểm tra <code>status = 'available'</code> và gán <code>hold_expires_at</code> (10 phút).</li>
-                <li><strong>Quy tắc 3:</strong> Khi thanh toán thành công, cập nhật <code>bookings</code>, <code>show_seats</code>, trừ ví (nếu dùng <code>WALLET</code>) và phát hành <code>tickets</code> trong cùng một DB Transaction.</li>
-                <li><strong>Quy tắc 4:</strong> Không xóa cứng dữ liệu đã phát sinh giao dịch (Users/Movies/Shows), chỉ chuyển trạng thái <code>status</code>.</li>
-            </ul>
-        </div>
+        <script>
+            window.__ADMIN_ANALYTICS_DATA__ = <?= json_encode($analytics ?? [], JSON_UNESCAPED_UNICODE) ?>;
+        </script>
+        <script src="?route=frontend/js&file=AdminAnalyticsApp.js"></script>
 
     <?php elseif ($tab === 'users'): ?>
         <div class="row g-4">

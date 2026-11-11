@@ -137,15 +137,23 @@
                                 <span class="text-muted">Tiền ghế:</span>
                                 <strong id="seatSubtotalText">0đ</strong>
                             </div>
-                            <div class="d-flex justify-content-between">
+                            <div class="d-flex justify-content-between mb-1">
                                 <span class="text-muted">Combo bắp nước:</span>
                                 <strong id="concessionTotalText">0đ</strong>
+                            </div>
+                            <div class="d-flex justify-content-between text-success" id="discountRow" style="display:none !important;">
+                                <span>Giảm giá Coupon:</span>
+                                <strong id="discountAmountText">-0đ</strong>
                             </div>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Mã giảm giá (Voucher / Coupon)</label>
-                            <input type="text" name="coupon_code" class="form-control form-control-sm" placeholder="Nhập WELCOME20 hoặc GIAM30K">
+                            <div class="input-group input-group-sm">
+                                <input type="text" name="coupon_code" id="couponCodeInput" class="form-control" placeholder="Nhập WELCOME20 hoặc GIAM30K">
+                                <button type="button" class="btn btn-outline-primary fw-semibold" id="btnCheckCoupon">Áp dụng</button>
+                            </div>
+                            <div id="couponFeedback" class="small mt-1"></div>
                         </div>
 
                         <div class="mb-3">
@@ -168,44 +176,4 @@
     </form>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const seatCheckboxes = document.querySelectorAll('.seat-checkbox');
-    const concessionInputs = document.querySelectorAll('.concession-input');
-    const selectedSeatList = document.getElementById('selectedSeatList');
-    const seatSubtotalText = document.getElementById('seatSubtotalText');
-    const concessionTotalText = document.getElementById('concessionTotalText');
-    const grandTotalText = document.getElementById('grandTotalText');
-
-    function recalc() {
-        let codes = [];
-        let seatSum = 0;
-        seatCheckboxes.forEach(cb => {
-            const label = cb.closest('.seat-box');
-            if (cb.checked) {
-                label.classList.add('seat-selected');
-                codes.push(cb.dataset.code);
-                seatSum += parseFloat(cb.dataset.price || 0);
-            } else {
-                label.classList.remove('seat-selected');
-            }
-        });
-
-        let conSum = 0;
-        concessionInputs.forEach(inp => {
-            const qty = parseInt(inp.value || '0', 10);
-            if (qty > 0) {
-                conSum += qty * parseFloat(inp.dataset.price || 0);
-            }
-        });
-
-        selectedSeatList.textContent = codes.length ? codes.join(', ') : 'Chưa chọn';
-        seatSubtotalText.textContent = seatSum.toLocaleString('vi-VN') + 'đ';
-        concessionTotalText.textContent = conSum.toLocaleString('vi-VN') + 'đ';
-        grandTotalText.textContent = (seatSum + conSum).toLocaleString('vi-VN') + 'đ';
-    }
-
-    seatCheckboxes.forEach(cb => cb.addEventListener('change', recalc));
-    concessionInputs.forEach(inp => inp.addEventListener('input', recalc));
-});
-</script>
+<script src="?route=frontend/js&file=SeatCouponApp.js"></script>

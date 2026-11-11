@@ -31,6 +31,7 @@ class AdminController extends BaseController
         $this->view('admin/dashboard', [
             'pageTitle' => 'Hệ Thống Quản Trị Rạp Chiếu Phim - CineNow Admin',
             'tab' => $tab,
+            'analytics' => $bookingModel->getDetailedAnalytics(),
             'cinemaInfo' => $userModel->getCinemaInfo(),
             'users' => $userModel->getAllUsersWithRoles(),
             'movies' => $movieModel->all('id DESC'),

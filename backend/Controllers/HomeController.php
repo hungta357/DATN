@@ -25,12 +25,16 @@ class HomeController extends BaseController
         $keyword = trim($_GET['q'] ?? '');
 
         $movies = $movieModel->getMovies($status, $keyword ?: null);
+        $allMovies = $movieModel->getMovies(null, null);
+        $genres = $movieModel->getAllGenres();
         $cinemaInfo = $userModel->getCinemaInfo();
         $showsByMovie = $showModel->getSellingShowsGroupedByMovie();
 
         $this->view('home/index', [
             'pageTitle' => $cinemaInfo['name'] . ' - Hệ thống rạp chiếu phim',
             'movies' => $movies,
+            'allMovies' => $allMovies,
+            'genres' => $genres,
             'showsByMovie' => $showsByMovie,
             'cinemaInfo' => $cinemaInfo,
             'currentStatus' => $status ?? 'all',
