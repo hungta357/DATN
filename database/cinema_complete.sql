@@ -1,5 +1,5 @@
 -- =========================================================
--- CINEMA BOOKING DATABASE - Laravel 12 / PHP MVC + MySQL 8.0
+-- CINEMA BOOKING DATABASE - Laravel 12 + MySQL 8.0
 -- Mo hinh: mot rap duy nhat, co the co nhieu phong chieu
 -- Tao database moi de tranh ghi de database cu.
 -- =========================================================
@@ -429,5 +429,13 @@ INSERT IGNORE INTO payment_methods (name, code, description) VALUES
 ('Vi noi bo', 'WALLET', 'Thanh toan bang so du vi');
 
 INSERT IGNORE INTO cinema_info (id, name, address, phone, email)
-VALUES (1, 'CineNow', 'Tầng 3, Tòa nhà Imperial Plaza, 360 Giải Phóng, Hà Nội', '1900 636807', 'cskh@cinenow.vn');
+VALUES (1, 'Cinema', 'Cap nhat dia chi rap cua ban', NULL, NULL);
 
+-- LUU Y NGHIEP VU:
+-- 1. Khi tao show, tao cac dong show_seats tu danh sach seats cua room.
+-- 2. Khi giu ghe, dung DB transaction + SELECT ... FOR UPDATE,
+--    chi giu neu status='available'; dat hold_expires_at.
+-- 3. Khi thanh toan thanh cong, cap nhat booking, show_seats va tao tickets
+--    trong cung mot DB transaction.
+-- 4. Khong xoa cung users/movies/shows da phat sinh giao dich; uu tien status.
+-- 5. Laravel timestamps dung created_at/updated_at; khoa chinh BIGINT UNSIGNED.

@@ -1,4 +1,9 @@
 <?php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('Việc khởi tạo dữ liệu chỉ được phép chạy từ Terminal trên máy phát triển.');
+}
+
 /**
  * Script tự động khởi tạo Database `cinema_complete`, nạp dữ liệu mẫu,
  * sinh sơ đồ ghế cho phòng chiếu và tạo suất chiếu mẫu.
@@ -53,44 +58,51 @@ try {
     $seedSql = file_get_contents(__DIR__ . '/database/seed_sample_data.sql');
     $pdo->exec($seedSql);
 
-    // 4. Autoload models từ thư mục backend/ để tạo ghế mẫu & suất chiếu mẫu
-    require_once __DIR__ . '/backend/Core/Database.php';
-    require_once __DIR__ . '/backend/Core/BaseModel.php';
-    require_once __DIR__ . '/backend/Models/RoomModel.php';
-    require_once __DIR__ . '/backend/Models/ShowModel.php';
+    // 4. Autoload models để tạo ghế mẫu & suất chiếu mẫu
+    require_once __DIR__ . '/app/Core/Database.php';
+    require_once __DIR__ . '/app/Core/BaseModel.php';
+    require_once __DIR__ . '/app/Models/RoomModel.php';
+    require_once __DIR__ . '/app/Models/ShowModel.php';
 
     $roomModel = new \App\Models\RoomModel();
     $roomModel->generateDefaultSeatsForRoom(1);
     $roomModel->generateDefaultSeatsForRoom(2);
 
     $showModel = new \App\Models\ShowModel();
-    $existingShows = $showModel->all();
-    if (empty($existingShows)) {
-        $showModel->createShowWithSeats([
-            'movie_id' => 1,
-            'room_id' => 1,
-            'start_time' => date('Y-m-d H:i:s', strtotime('+2 hours')),
-            'end_time' => date('Y-m-d H:i:s', strtotime('+5 hours')),
-            'base_price' => 60000,
-            'status' => 'selling',
-        ]);
-        $showModel->createShowWithSeats([
-            'movie_id' => 1,
-            'room_id' => 2,
-            'start_time' => date('Y-m-d H:i:s', strtotime('+5 hours')),
-            'end_time' => date('Y-m-d H:i:s', strtotime('+8 hours')),
-            'base_price' => 70000,
-            'status' => 'selling',
-        ]);
-        $showModel->createShowWithSeats([
-            'movie_id' => 2,
-            'room_id' => 2,
-            'start_time' => date('Y-m-d H:i:s', strtotime('+3 hours')),
-            'end_time' => date('Y-m-d H:i:s', strtotime('+5 hours')),
-            'base_price' => 55000,
-            'status' => 'selling',
-        ]);
+    $pdoApp = \App\Core\Database::getConnection();
+    $activeMovies = $pdoApp->query("SELECT id, runtime FROM movies WHERE status = 'now_showing' ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $activeRooms = $pdoApp->query("SELECT id FROM rooms WHERE status = 'active' ORDER BY id ASC LIMIT 2")->fetchAll(PDO::FETCH_ASSOC);
+
+    // Tao lich chieu 7 ngay tiep theo, 5 khung gio/phong/ngay. Bo qua neu da ton tai.
+    // Chay setup nhieu lan khong tao trung suat chieu.
+    if (!empty($activeMovies) && !empty($activeRooms)) {
+        $slots = ['09:00:00', '12:30:00', '16:00:00', '19:30:00', '22:30:00'];
+        $movieCount = count($activeMovies);
+        foreach ($activeRooms as $roomIndex => $room) {
+            foreach (range(1, 7) as $dayOffset) {
+                foreach ($slots as $slotIndex => $slot) {
+                    $movie = $activeMovies[(($dayOffset - 1) * count($activeRooms) * count($slots) + $roomIndex * count($slots) + $slotIndex) % $movieCount];
+                    $startAt = date('Y-m-d', strtotime("+{$dayOffset} day")) . ' ' . $slot;
+                    $check = $pdoApp->prepare('SELECT id FROM shows WHERE room_id = :room_id AND start_time = :start_time LIMIT 1');
+                    $check->execute(['room_id' => (int) $room['id'], 'start_time' => $startAt]);
+                    if ($check->fetchColumn()) {
+                        continue;
+                    }
+                    $runtime = max(80, (int) ($movie['runtime'] ?? 120));
+                    $endAt = date('Y-m-d H:i:s', strtotime($startAt . " +{$runtime} minutes"));
+                    $showModel->createShowWithSeats([
+                        'movie_id' => (int) $movie['id'],
+                        'room_id' => (int) $room['id'],
+                        'start_time' => $startAt,
+                        'end_time' => $endAt,
+                        'base_price' => $roomIndex === 0 ? 65000 : 75000,
+                        'status' => 'selling',
+                    ]);
+                }
+            }
+        }
     }
+
 
     if (PHP_SAPI === 'cli') {
         echo "[OK] Database cinema_complete va du lieu mau da san sang!\n";
