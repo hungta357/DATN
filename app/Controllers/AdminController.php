@@ -219,3 +219,4 @@ class AdminController extends BaseController
         $this->redirect('?route=admin&tab=concessions');
     }
 }
+

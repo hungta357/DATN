@@ -187,3 +187,4 @@ document.addEventListener('DOMContentLoaded', function () {
     concessionInputs.forEach(inp => inp.addEventListener('input', recalc));
 });
 </script>
+

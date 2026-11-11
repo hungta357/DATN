@@ -80,3 +80,4 @@ abstract class BaseModel
         return $this->db;
     }
 }
+

@@ -128,3 +128,4 @@ switch ($route) {
         echo '404 - Route không tồn tại.';
         break;
 }
+

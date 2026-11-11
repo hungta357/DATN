@@ -80,3 +80,4 @@ class AuthController extends BaseController
         $this->redirect('?route=home');
     }
 }
+

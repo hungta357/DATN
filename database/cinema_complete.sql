@@ -430,3 +430,4 @@ INSERT IGNORE INTO payment_methods (name, code, description) VALUES
 
 INSERT IGNORE INTO cinema_info (id, name, address, phone, email)
 VALUES (1, 'Cinema', 'Cap nhat dia chi rap cua ban', NULL, NULL);
+

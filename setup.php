@@ -57,3 +57,4 @@ try {
 } catch (Throwable $e) {
     echo "Lỗi khởi tạo Database: " . $e->getMessage();
 }
+

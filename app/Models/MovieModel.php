@@ -77,3 +77,4 @@ class MovieModel extends BaseModel
         }
     }
 }
+

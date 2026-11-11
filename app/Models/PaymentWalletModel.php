@@ -88,3 +88,4 @@ class PaymentWalletModel extends BaseModel
         }
     }
 }
+

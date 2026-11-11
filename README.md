@@ -41,3 +41,4 @@ Bộ base code được xây dựng theo mô hình **PHP MVC (PDO + MySQL 8.0)**
 - **Admin:** `admin@cinema.vn` / Mật khẩu: `password`
 - **Staff (Soát vé):** `staff@cinema.vn` / Mật khẩu: `password`
 - **Customer (Khách hàng - có sẵn 500.000đ trong Ví nội bộ):** `customer@cinema.vn` / Mật khẩu: `password`
+

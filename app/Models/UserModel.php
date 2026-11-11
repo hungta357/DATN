@@ -105,3 +105,4 @@ class UserModel extends BaseModel
         ]);
     }
 }
+

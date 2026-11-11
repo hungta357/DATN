@@ -40,3 +40,4 @@ class WalletController extends BaseController
         $this->redirect('?route=wallet');
     }
 }
+

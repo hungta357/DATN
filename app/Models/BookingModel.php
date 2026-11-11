@@ -378,3 +378,4 @@ class BookingModel extends BaseModel
         return $ticket;
     }
 }
+
