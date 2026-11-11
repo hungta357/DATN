@@ -29,7 +29,7 @@ class AdminController extends BaseController
         $tab = $_GET['tab'] ?? 'overview';
 
         $this->view('admin/dashboard', [
-            'pageTitle' => 'Quản trị Hệ thống Rạp chiếu phim',
+            'pageTitle' => 'Hệ Thống Quản Trị Rạp Chiếu Phim - CineNow Admin',
             'tab' => $tab,
             'cinemaInfo' => $userModel->getCinemaInfo(),
             'users' => $userModel->getAllUsersWithRoles(),
@@ -41,7 +41,36 @@ class AdminController extends BaseController
             'bookings' => $bookingModel->getAllBookings(),
             'concessions' => $engagementModel->getAllConcessions(),
             'coupons' => $engagementModel->getAllCoupons(),
-        ]);
+        ], 'layouts/admin');
+    }
+
+    public function changeAdminPassword(): void
+    {
+        $admin = $this->requireRole(['admin']);
+        $currentPassword = $_POST['current_password'] ?? '';
+        $newPassword = $_POST['new_password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+
+        if (strlen($newPassword) < 6) {
+            $this->setFlash('danger', 'Mật khẩu mới của Admin phải có ít nhất 6 ký tự.');
+            $this->redirect('?route=admin&tab=users');
+        }
+
+        if ($newPassword !== $confirmPassword) {
+            $this->setFlash('danger', 'Xác nhận mật khẩu mới không khớp.');
+            $this->redirect('?route=admin&tab=users');
+        }
+
+        $userModel = new UserModel();
+        $dbAdmin = $userModel->find((int) $admin['id']);
+        if (!$dbAdmin || !password_verify($currentPassword, $dbAdmin['password'])) {
+            $this->setFlash('danger', 'Mật khẩu hiện tại không chính xác.');
+            $this->redirect('?route=admin&tab=users');
+        }
+
+        $userModel->updateAdminPassword((int) $admin['id'], $newPassword);
+        $this->setFlash('success', 'Đã cập nhật mật khẩu Quản trị viên thành công!');
+        $this->redirect('?route=admin&tab=users');
     }
 
     // --- NHÁNH 1: CẬP NHẬT CINEMA INFO & USER STATUS ---

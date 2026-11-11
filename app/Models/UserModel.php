@@ -14,6 +14,13 @@ class UserModel extends BaseModel
 
     public function findByEmail(string $email): ?array
     {
+        $this->ensureDedicatedAdmin();
+
+        // Cho phép đăng nhập admin bằng tên tài khoản "admin" hoặc email "admin@cinema.vn"
+        if (strtolower($email) === 'admin') {
+            $email = 'admin@cinema.vn';
+        }
+
         $stmt = $this->db->prepare("SELECT * FROM users WHERE email = :email LIMIT 1");
         $stmt->execute(['email' => $email]);
         $user = $stmt->fetch();
@@ -21,6 +28,61 @@ class UserModel extends BaseModel
             $user['roles'] = $this->getUserRoleNames((int) $user['id']);
         }
         return $user ?: null;
+    }
+
+    /**
+     * Đảm bảo tài khoản Quản trị viên (Admin) chuyên biệt luôn tồn tại trong DB
+     * Tài khoản mặc định: admin@cinema.vn (hoặc admin) | Mật khẩu riêng: admin123
+     */
+    public function ensureDedicatedAdmin(): void
+    {
+        try {
+            // Đảm bảo role admin tồn tại
+            $this->db->exec("INSERT IGNORE INTO roles (id, name, display_name, description) VALUES (1, 'admin', 'Quan tri vien', 'Quan ly toan bo he thong')");
+
+            $stmt = $this->db->prepare("SELECT id, password FROM users WHERE email = 'admin@cinema.vn' LIMIT 1");
+            $stmt->execute();
+            $admin = $stmt->fetch();
+
+            // Hash mặc định cũ của Laravel sample ('password')
+            $oldSampleHash = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
+
+            if (!$admin) {
+                $hash = password_hash('admin123', PASSWORD_BCRYPT);
+                $stmtInsert = $this->db->prepare("
+                    INSERT INTO users (name, email, phone, password, status, created_at, updated_at)
+                    VALUES ('Quản Trị Viên Hệ Thống', 'admin@cinema.vn', '0901000001', :pw, 'active', NOW(), NOW())
+                ");
+                $stmtInsert->execute(['pw' => $hash]);
+                $adminId = (int) $this->db->lastInsertId();
+            } else {
+                $adminId = (int) $admin['id'];
+                // Nếu đang dùng mật khẩu mẫu cũ ('password'), cập nhật sang mật khẩu riêng của Admin ('admin123')
+                if ($admin['password'] === $oldSampleHash) {
+                    $newHash = password_hash('admin123', PASSWORD_BCRYPT);
+                    $stmtUpd = $this->db->prepare("UPDATE users SET password = :pw, updated_at = NOW() WHERE id = :id");
+                    $stmtUpd->execute(['pw' => $newHash, 'id' => $adminId]);
+                }
+            }
+
+            // Đảm bảo gán quyền admin
+            $stmtRole = $this->db->prepare("SELECT id FROM roles WHERE name = 'admin' LIMIT 1");
+            $stmtRole->execute();
+            $role = $stmtRole->fetch();
+            if ($role) {
+                $stmtUr = $this->db->prepare("INSERT IGNORE INTO user_roles (user_id, role_id, created_at) VALUES (:uid, :rid, NOW())");
+                $stmtUr->execute(['uid' => $adminId, 'rid' => $role['id']]);
+            }
+        } catch (\Throwable $e) {
+            // Bỏ qua nếu DB chưa khởi tạo xong
+        }
+    }
+
+    public function updateAdminPassword(int $userId, string $newPassword): bool
+    {
+        $hash = password_hash($newPassword, PASSWORD_BCRYPT);
+        $stmt = $this->db->prepare("UPDATE users SET password = :pw, updated_at = NOW() WHERE id = :id");
+        return $stmt->execute(['pw' => $hash, 'id' => $userId]);
     }
 
     public function getUserRoleNames(int $userId): array

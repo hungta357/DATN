@@ -56,10 +56,15 @@ abstract class BaseController
 
     protected function requireRole(array $allowedRoles = ['admin', 'staff']): array
     {
-        $user = $this->requireAuth();
+        if (empty($_SESSION['user'])) {
+            $this->setFlash('warning', 'Vui lòng đăng nhập bằng tài khoản Quản trị viên để tiếp tục.');
+            $this->redirect('?route=auth/login');
+        }
+
+        $user = $_SESSION['user'];
         $userRoles = $user['roles'] ?? [];
         if (empty(array_intersect($allowedRoles, $userRoles))) {
-            $this->setFlash('danger', 'Bạn không có quyền truy cập khu vực này.');
+            $this->setFlash('danger', 'Bạn không có quyền truy cập khu vực Quản trị.');
             $this->redirect('?route=home');
         }
         return $user;

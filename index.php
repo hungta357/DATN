@@ -101,8 +101,17 @@ switch ($route) {
         break;
 
     // --- QUẢN TRỊ TỔNG HỢP 7 NHÁNH (ADMIN & STAFF) ---
+    case 'admin/login':
+        (new AuthController())->adminLogin();
+        break;
+    case 'admin/logout':
+        (new AuthController())->adminLogout();
+        break;
     case 'admin':
         (new AdminController())->dashboard();
+        break;
+    case 'admin/password/change':
+        (new AdminController())->changeAdminPassword();
         break;
     case 'admin/cinema/save':
         (new AdminController())->saveCinemaInfo();

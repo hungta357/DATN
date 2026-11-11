@@ -15,9 +15,9 @@ SET name = 'CineNow',
     updated_at = NOW()
 WHERE id = 1;
 
--- 1. Tai khoan mau (password = password -> bcrypt hash)
+-- 1. Tai khoan mau (Admin mat khau rieng: admin123 | Staff & Customer mat khau: password)
 INSERT IGNORE INTO users (id, name, email, phone, password, status, created_at, updated_at) VALUES
-(1, 'Admin Cinema', 'admin@cinema.vn', '0901000001', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'active', NOW(), NOW()),
+(1, 'Admin Cinema', 'admin@cinema.vn', '0901000001', '$2y$10$NjCgQCd/6Lakl6YWwjZ6RuawnsR2/HnmuNUKR1gc1j4gh0QYYiGbG', 'active', NOW(), NOW()),
 (2, 'Nhan Vien Soat Ve', 'staff@cinema.vn', '0901000002', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'active', NOW(), NOW()),
 (3, 'Nguyen Van Khach', 'customer@cinema.vn', '0901000003', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'active', NOW(), NOW());
 

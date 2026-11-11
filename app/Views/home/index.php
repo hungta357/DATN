@@ -73,7 +73,7 @@
 
     <?php if (empty($movies)): ?>
         <div class="alert alert-info text-center py-4">
-            Hiện chưa có phim nào trong mục này. Bạn có thể chuyển sang tab khác hoặc thêm phim trong trang Quản trị.
+            Hiện chưa có phim nào trong mục này.
         </div>
     <?php else: ?>
         <!-- LƯỚI 4 CỘT PHIM PHONG CÁCH BETA CINEMAS -->

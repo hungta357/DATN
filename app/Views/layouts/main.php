@@ -288,10 +288,6 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
                 <a href="?route=wishlist"><i class="bi bi-heart me-1"></i>Yêu thích</a>
                 <span>|</span>
                 <a href="?route=notifications"><i class="bi bi-bell me-1"></i>Thông báo</a>
-                <?php if (!empty($_SESSION['user']['roles']) && array_intersect(['admin', 'staff'], $_SESSION['user']['roles'])): ?>
-                    <span>|</span>
-                    <a href="?route=admin" class="text-warning fw-bold"><i class="bi bi-gear-fill me-1"></i>Quản trị Rạp</a>
-                <?php endif; ?>
                 <span>|</span>
                 <span class="text-info fw-semibold"><?= htmlspecialchars($_SESSION['user']['name']) ?></span>
                 <a href="?route=auth/logout" class="text-danger ms-1">[Thoát]</a>

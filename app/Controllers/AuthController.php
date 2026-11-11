@@ -17,7 +17,7 @@ class AuthController extends BaseController
             $user = $userModel->findByEmail($email);
 
             if (!$user || !password_verify($password, $user['password'])) {
-                $this->setFlash('danger', 'Email hoặc mật khẩu không chính xác.');
+                $this->setFlash('danger', 'Tài khoản hoặc mật khẩu không chính xác.');
                 $this->redirect('?route=auth/login');
             }
 
@@ -29,6 +29,13 @@ class AuthController extends BaseController
             unset($user['password']);
             $_SESSION['user'] = $user;
 
+            // Nếu là tài khoản Quản trị viên (admin / staff), chuyển thẳng vào Trang Quản Trị riêng biệt
+            if (!empty($user['roles']) && array_intersect(['admin', 'staff'], $user['roles'])) {
+                unset($_SESSION['redirect_after_login']);
+                $this->setFlash('success', 'Chào mừng Quản trị viên ' . htmlspecialchars($user['name']) . ' quay trở lại hệ thống!');
+                $this->redirect('?route=admin');
+            }
+
             $redirectUrl = $_SESSION['redirect_after_login'] ?? '?route=home';
             unset($_SESSION['redirect_after_login']);
 
@@ -37,6 +44,18 @@ class AuthController extends BaseController
         }
 
         $this->view('auth/login', ['pageTitle' => 'Đăng nhập']);
+    }
+
+    public function adminLogin(): void
+    {
+        $this->redirect('?route=auth/login');
+    }
+
+    public function adminLogout(): void
+    {
+        unset($_SESSION['user']);
+        $this->setFlash('info', 'Bạn đã đăng xuất.');
+        $this->redirect('?route=auth/login');
     }
 
     public function register(): void

@@ -1,18 +1,12 @@
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3 class="oswald-font fw-bold text-uppercase mb-0" style="color: var(--beta-blue);">
-            <i class="bi bi-sliders text-danger me-2"></i>Quản Trị Rạp Chiếu Phim (7 Nhánh Database)
-        </h3>
-    </div>
-
-    <ul class="nav nav-pills mb-4 gap-1">
-        <li class="nav-item"><a class="nav-link <?= $tab === 'overview' ? 'active' : 'bg-white border' ?>" href="?route=admin&tab=overview">Tổng quan</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'users' ? 'active' : 'bg-white border' ?>" href="?route=admin&tab=users">1. Rạp & Users</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'movies' ? 'active' : 'bg-white border' ?>" href="?route=admin&tab=movies">2. Phim & Thể loại</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'rooms' ? 'active' : 'bg-white border' ?>" href="?route=admin&tab=rooms">3. Phòng & Ghế</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'shows' ? 'active' : 'bg-white border' ?>" href="?route=admin&tab=shows">4. Suất chiếu (Shows)</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'bookings' ? 'active' : 'bg-white border' ?>" href="?route=admin&tab=bookings">5-6. Đơn vé & Soát vé QR</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'concessions' ? 'active' : 'bg-white border' ?>" href="?route=admin&tab=concessions">7. Bắp nước & Coupon</a></li>
+<div>
+    <ul class="nav nav-pills mb-4 gap-2">
+        <li class="nav-item"><a class="nav-link <?= $tab === 'overview' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=overview">Tổng quan</a></li>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'users' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=users">1. Rạp, Users & Mật khẩu Admin</a></li>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'movies' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=movies">2. Phim & Thể loại</a></li>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'rooms' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=rooms">3. Phòng & Ghế</a></li>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'shows' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=shows">4. Suất chiếu (Shows)</a></li>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'bookings' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=bookings">5-6. Đơn vé & Soát vé QR</a></li>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'concessions' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=concessions">7. Bắp nước & Coupon</a></li>
     </ul>
 
     <?php if ($tab === 'overview'): ?>
@@ -80,6 +74,29 @@
                                 <textarea name="description" rows="3" class="form-control form-control-sm"><?= htmlspecialchars($cinemaInfo['description'] ?? '') ?></textarea>
                             </div>
                             <button type="submit" class="btn btn-beta-buy btn-sm w-100">Lưu Thông Tin Rạp</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm bg-white mt-3">
+                    <div class="card-header bg-white fw-bold text-danger">
+                        <i class="bi bi-shield-lock-fill me-1"></i> Đổi Mật Khẩu Dành Riêng Cho Quản Trị Viên
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="?route=admin/password/change">
+                            <div class="mb-2">
+                                <label class="form-label small">Mật khẩu Admin hiện tại</label>
+                                <input type="password" name="current_password" class="form-control form-control-sm" required placeholder="Nhập mật khẩu hiện tại">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Mật khẩu Admin mới (tối thiểu 6 ký tự)</label>
+                                <input type="password" name="new_password" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Nhập lại mật khẩu mới</label>
+                                <input type="password" name="confirm_password" class="form-control form-control-sm" required>
+                            </div>
+                            <button type="submit" class="btn btn-danger btn-sm w-100 fw-bold">Cập Nhật Mật Khẩu Admin</button>
                         </form>
                     </div>
                 </div>
