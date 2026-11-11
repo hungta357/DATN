@@ -98,8 +98,11 @@
                 </div>
             <?php else: ?>
                 <div class="card border-0 shadow-sm bg-white rounded-4 overflow-hidden">
-                    <div class="card-header bg-success text-white oswald-font fs-5 text-uppercase">
-                        <i class="bi bi-qr-code-scan me-1"></i> VÉ ĐIỆN TỬ QR CODE ĐÃ PHÁT HÀNH
+                    <div class="card-header bg-success text-white oswald-font fs-5 text-uppercase d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-qr-code-scan me-1"></i> VÉ ĐIỆN TỬ QR CODE ĐÃ PHÁT HÀNH</span>
+                        <button type="button" class="btn btn-sm btn-light text-dark fw-bold" onclick="window.print()">
+                            <i class="bi bi-printer-fill me-1"></i> In vé
+                        </button>
                     </div>
                     <div class="card-body p-4">
                         <?php foreach ($booking['seats'] as $s): ?>

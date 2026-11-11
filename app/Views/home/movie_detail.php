@@ -21,7 +21,12 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
                     <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600') ?>"
                          alt="<?= htmlspecialchars($movie['title']) ?>">
                 </div>
-                <form method="POST" action="?route=wishlist/toggle" class="mt-3">
+                <?php if (!empty($movie['trailer_url'])): ?>
+                    <button type="button" class="btn btn-warning w-100 btn-sm fw-bold mt-2 text-dark" data-bs-toggle="modal" data-bs-target="#trailerModal">
+                        <i class="bi bi-play-circle-fill me-1"></i> Xem Trailer Phim
+                    </button>
+                <?php endif; ?>
+                <form method="POST" action="?route=wishlist/toggle" class="mt-2">
                     <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
                     <button type="submit" class="btn btn-outline-danger w-100 btn-sm fw-semibold">
                         <i class="bi bi-heart-fill me-1"></i> Lưu vào Phim Yêu Thích
@@ -110,3 +115,22 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
         <?php endif; ?>
     </div>
 </div>
+
+<?php if (!empty($movie['trailer_url'])): ?>
+    <!-- MODAL XEM TRAILER YOUTUBE -->
+    <div class="modal fade" id="trailerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary text-white py-2">
+                    <h6 class="modal-title oswald-font text-uppercase mb-0">Trailer: <?= htmlspecialchars($movie['title_vi'] ?: $movie['title']) ?></h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="ratio ratio-16x9">
+                        <iframe src="<?= htmlspecialchars($movie['trailer_url']) ?>" title="Movie Trailer" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
