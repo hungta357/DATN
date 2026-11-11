@@ -242,6 +242,7 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
         .seat-box:hover { transform: scale(1.08); }
         .seat-available { background-color: #babbc3; color: #222; }
         .seat-vip { background-color: #f7b500; color: #fff; }
+        .seat-couple { background-color: #e83e8c; color: #fff; width: 96px; }
         .seat-selected { background-color: #03599d !important; color: #fff !important; box-shadow: 0 0 0 2px #3db1f3; }
         .seat-held { background-color: #3db1f3; color: #fff; cursor: not-allowed; opacity: 0.7; }
         .seat-booked, .seat-blocked { background-color: #df2029; color: #fff; cursor: not-allowed; opacity: 0.65; }

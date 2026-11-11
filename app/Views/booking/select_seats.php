@@ -40,8 +40,13 @@
                                     $cssClass = 'seat-available';
                                     if (!$isSelectable) {
                                         $cssClass = ($status === 'held') ? 'seat-held' : 'seat-booked';
-                                    } elseif (stripos($seat['seat_type_name'], 'VIP') !== false || stripos($seat['seat_type_name'], 'Couple') !== false) {
+                                    } elseif (stripos($seat['seat_type_name'], 'Couple') !== false) {
+                                        $cssClass = 'seat-couple';
+                                    } elseif (stripos($seat['seat_type_name'], 'VIP') !== false) {
                                         $cssClass = 'seat-vip';
+                                    }
+                                    if (stripos($seat['seat_type_name'], 'Couple') !== false && !$isSelectable) {
+                                        $cssClass .= ' seat-couple';
                                     }
                                     ?>
                                     <label class="seat-box <?= $cssClass ?>"
@@ -64,6 +69,7 @@
                     <div class="d-flex justify-content-center flex-wrap gap-3 mt-4 pt-3 border-top small">
                         <span><span class="seat-box seat-available" style="width:20px;height:20px;cursor:default;"></span> Ghế thường</span>
                         <span><span class="seat-box seat-vip" style="width:20px;height:20px;cursor:default;"></span> Ghế VIP</span>
+                        <span><span class="seat-box seat-couple" style="width:32px;height:20px;cursor:default;"></span> Ghế đôi (Couple)</span>
                         <span><span class="seat-box seat-selected" style="width:20px;height:20px;cursor:default;"></span> Ghế đang chọn</span>
                         <span><span class="seat-box seat-held" style="width:20px;height:20px;cursor:default;"></span> Ghế đang được giữ</span>
                         <span><span class="seat-box seat-booked" style="width:20px;height:20px;cursor:default;"></span> Ghế đã bán</span>
