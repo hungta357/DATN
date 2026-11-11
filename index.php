@@ -43,9 +43,21 @@ switch ($route) {
         (new AuthController())->logout();
         break;
 
-    // --- NHÁNH 2 & 7: MOVIES / REVIEWS / WISHLISTS / NOTIFICATIONS ---
+    // --- NHÁNH 2 & 7: TRANG CHỦ BETA CINEMA / LỊCH CHIẾU / GIÁ VÉ / ƯU ĐÃI / THÔNG TIN RẠP ---
     case 'home':
         (new HomeController())->index();
+        break;
+    case 'schedule':
+        (new HomeController())->schedule();
+        break;
+    case 'prices':
+        (new HomeController())->prices();
+        break;
+    case 'promotions':
+        (new HomeController())->promotions();
+        break;
+    case 'about':
+        (new HomeController())->about();
         break;
     case 'movie/detail':
         (new HomeController())->movieDetail();
@@ -128,4 +140,3 @@ switch ($route) {
         echo '404 - Route không tồn tại.';
         break;
 }
-

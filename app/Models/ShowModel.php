@@ -18,7 +18,8 @@ class ShowModel extends BaseModel
 
     public function getShowsByMovie(int $movieId): array
     {
-        $sql = "SELECT sh.*, r.name AS room_name, r.room_type
+        $sql = "SELECT sh.*, r.name AS room_name, r.room_type,
+                       (SELECT COUNT(*) FROM show_seats ss WHERE ss.show_id = sh.id AND ss.status = 'available') AS available_seats
                 FROM shows sh
                 INNER JOIN rooms r ON r.id = sh.room_id
                 WHERE sh.movie_id = :movie_id
@@ -27,6 +28,35 @@ class ShowModel extends BaseModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['movie_id' => $movieId]);
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Lấy tất cả suất chiếu đang mở bán nhóm theo movie_id (phục vụ popup MUA VÉ nhanh & trang Lịch chiếu theo ngày kiểu Beta Cinema)
+     */
+    public function getSellingShowsGroupedByMovie(?string $date = null): array
+    {
+        $whereDate = '';
+        $params = [];
+        if ($date) {
+            $whereDate = ' AND DATE(sh.start_time) = :show_date ';
+            $params['show_date'] = $date;
+        }
+
+        $sql = "SELECT sh.*, r.name AS room_name, r.room_type,
+                       (SELECT COUNT(*) FROM show_seats ss WHERE ss.show_id = sh.id AND ss.status = 'available') AS available_seats
+                FROM shows sh
+                INNER JOIN rooms r ON r.id = sh.room_id
+                WHERE sh.status IN ('scheduled', 'selling') {$whereDate}
+                ORDER BY sh.start_time ASC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+
+        $grouped = [];
+        foreach ($rows as $row) {
+            $grouped[(int) $row['movie_id']][] = $row;
+        }
+        return $grouped;
     }
 
     public function getAllShowsWithDetails(): array

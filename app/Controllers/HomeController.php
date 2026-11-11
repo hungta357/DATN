@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Core\BaseController;
 use App\Models\EngagementModel;
 use App\Models\MovieModel;
+use App\Models\RoomModel;
 use App\Models\ShowModel;
 use App\Models\UserModel;
 
@@ -14,19 +15,107 @@ class HomeController extends BaseController
     {
         $movieModel = new MovieModel();
         $userModel = new UserModel();
+        $showModel = new ShowModel();
 
-        $status = $_GET['status'] ?? null;
+        // Mặc định hiển thị tab PHIM ĐANG CHIẾU giống Beta Cinemas
+        $status = $_GET['status'] ?? 'now_showing';
+        if ($status === 'all') {
+            $status = null;
+        }
         $keyword = trim($_GET['q'] ?? '');
 
-        $movies = $movieModel->getMovies($status ?: null, $keyword ?: null);
+        $movies = $movieModel->getMovies($status, $keyword ?: null);
         $cinemaInfo = $userModel->getCinemaInfo();
+        $showsByMovie = $showModel->getSellingShowsGroupedByMovie();
 
         $this->view('home/index', [
-            'pageTitle' => $cinemaInfo['name'] . ' - Đặt vé xem phim trực tuyến',
+            'pageTitle' => $cinemaInfo['name'] . ' - Hệ thống rạp chiếu phim',
             'movies' => $movies,
+            'showsByMovie' => $showsByMovie,
             'cinemaInfo' => $cinemaInfo,
-            'currentStatus' => $status,
+            'currentStatus' => $status ?? 'all',
             'keyword' => $keyword,
+        ]);
+    }
+
+    /**
+     * Trang LỊCH CHIẾU THEO NGÀY (Beta Cinemas style - cho 1 rạp duy nhất)
+     */
+    public function schedule(): void
+    {
+        $movieModel = new MovieModel();
+        $showModel = new ShowModel();
+        $userModel = new UserModel();
+
+        $selectedDate = $_GET['date'] ?? '';
+        $movies = $movieModel->getMovies('now_showing');
+        $showsByMovie = $showModel->getSellingShowsGroupedByMovie($selectedDate ?: null);
+        $cinemaInfo = $userModel->getCinemaInfo();
+
+        $this->view('home/schedule', [
+            'pageTitle' => 'Lịch chiếu theo ngày - ' . $cinemaInfo['name'],
+            'movies' => $movies,
+            'showsByMovie' => $showsByMovie,
+            'selectedDate' => $selectedDate,
+            'cinemaInfo' => $cinemaInfo,
+        ]);
+    }
+
+    /**
+     * Trang GIÁ VÉ của rạp
+     */
+    public function prices(): void
+    {
+        $roomModel = new RoomModel();
+        $userModel = new UserModel();
+
+        $cinemaInfo = $userModel->getCinemaInfo();
+        $seatTypes = $roomModel->getAllSeatTypes();
+        $rooms = $roomModel->all('id ASC');
+
+        $this->view('home/prices', [
+            'pageTitle' => 'Bảng giá vé - ' . $cinemaInfo['name'],
+            'cinemaInfo' => $cinemaInfo,
+            'seatTypes' => $seatTypes,
+            'rooms' => $rooms,
+        ]);
+    }
+
+    /**
+     * Trang TIN MỚI VÀ ƯU ĐÃI (Hiển thị Coupons & Combo Bắp Nước của rạp)
+     */
+    public function promotions(): void
+    {
+        $engagementModel = new EngagementModel();
+        $userModel = new UserModel();
+
+        $cinemaInfo = $userModel->getCinemaInfo();
+        $coupons = $engagementModel->getAllCoupons();
+        $concessions = $engagementModel->getActiveConcessions();
+
+        $this->view('home/promotions', [
+            'pageTitle' => 'Tin mới và Ưu đãi - ' . $cinemaInfo['name'],
+            'cinemaInfo' => $cinemaInfo,
+            'coupons' => $coupons,
+            'concessions' => $concessions,
+        ]);
+    }
+
+    /**
+     * Trang THÔNG TIN RẠP (Mô hình 1 rạp chiếu lẻ duy nhất với nhiều phòng chiếu)
+     */
+    public function about(): void
+    {
+        $userModel = new UserModel();
+        $roomModel = new RoomModel();
+
+        $cinemaInfo = $userModel->getCinemaInfo();
+        $rooms = $roomModel->all('id ASC');
+
+        $this->view('home/about', [
+            'pageTitle' => 'Thông tin rạp - ' . $cinemaInfo['name'],
+            'cinemaInfo' => $cinemaInfo,
+            'rooms' => $rooms,
         ]);
     }
 
@@ -36,6 +125,7 @@ class HomeController extends BaseController
         $movieModel = new MovieModel();
         $showModel = new ShowModel();
         $engagementModel = new EngagementModel();
+        $userModel = new UserModel();
 
         $movie = $movieModel->findWithDetails($id);
         if (!$movie) {
@@ -45,12 +135,14 @@ class HomeController extends BaseController
 
         $shows = $showModel->getShowsByMovie($id);
         $reviews = $engagementModel->getMovieReviews($id);
+        $cinemaInfo = $userModel->getCinemaInfo();
 
         $this->view('home/movie_detail', [
-            'pageTitle' => $movie['title'],
+            'pageTitle' => $movie['title'] . ' - ' . $cinemaInfo['name'],
             'movie' => $movie,
             'shows' => $shows,
             'reviews' => $reviews,
+            'cinemaInfo' => $cinemaInfo,
         ]);
     }
 
@@ -110,4 +202,3 @@ class HomeController extends BaseController
         ]);
     }
 }
-

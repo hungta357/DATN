@@ -5,6 +5,16 @@
 
 USE cinema_complete;
 
+-- Cap nhat thong tin 1 Rap chieu le duy nhat theo phong cach Beta Cinema
+UPDATE cinema_info
+SET name = 'Beta Cinema Giải Phóng',
+    address = 'Tầng 3, Tòa nhà Imperial Plaza, 360 Giải Phóng, Hà Nội',
+    phone = '1900 636807',
+    email = 'cskh@betacinema.vn',
+    description = 'Rạp chiếu phim độc lập phong cách Beta Cinema trẻ trung, hiện đại với hệ thống 4 phòng chiếu tiêu chuẩn Hollywood và giá vé ưu đãi dành cho học sinh, sinh viên.',
+    updated_at = NOW()
+WHERE id = 1;
+
 -- 1. Tai khoan mau (password = password -> bcrypt hash)
 INSERT IGNORE INTO users (id, name, email, phone, password, status, created_at, updated_at) VALUES
 (1, 'Admin Cinema', 'admin@cinema.vn', '0901000001', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'active', NOW(), NOW()),

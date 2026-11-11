@@ -12,3 +12,4 @@ echo Dang khoi dong PHP Server tai: http://localhost:8000
 echo Nhan Ctrl+C de dung server.
 echo.
 "%PHP_BIN%" -S localhost:8000
+
