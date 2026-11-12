@@ -78,6 +78,14 @@ try {
     if (!empty($activeMovies) && !empty($activeRooms)) {
         $slots = ['09:00:00', '12:30:00', '16:00:00', '19:30:00', '22:30:00'];
         $movieCount = count($activeMovies);
+        $checkOverlappingShow = $pdoApp->prepare("
+            SELECT id FROM shows
+            WHERE room_id = :room_id
+              AND status <> 'cancelled'
+              AND start_time < :end_time
+              AND end_time > :start_time
+            LIMIT 1
+        ");
         foreach ($activeRooms as $roomIndex => $room) {
             foreach (range(1, 7) as $dayOffset) {
                 foreach ($slots as $slotIndex => $slot) {
@@ -90,6 +98,15 @@ try {
                     }
                     $runtime = max(80, (int) ($movie['runtime'] ?? 120));
                     $endAt = date('Y-m-d H:i:s', strtotime($startAt . " +{$runtime} minutes"));
+                    $checkOverlappingShow->execute([
+                        'room_id' => (int) $room['id'],
+                        'start_time' => $startAt,
+                        'end_time' => $endAt,
+                    ]);
+                    if ($checkOverlappingShow->fetchColumn()) {
+                        continue;
+                    }
+
                     $showModel->createShowWithSeats([
                         'movie_id' => (int) $movie['id'],
                         'room_id' => (int) $room['id'],

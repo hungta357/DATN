@@ -23,10 +23,21 @@
 
                     <?php
                     $groupedRows = [];
+                    $hasOwnHeldSeats = false;
                     foreach ($showSeats as $ss) {
                         $groupedRows[$ss['row_label']][] = $ss;
+                        if ($ss['status'] === 'held' && (int) $ss['held_by_user_id'] === (int) $user['id']) {
+                            $hasOwnHeldSeats = true;
+                        }
                     }
                     ?>
+
+                    <?php if ($hasOwnHeldSeats): ?>
+                        <div class="alert alert-info text-start">
+                            Bạn đang giữ ghế trong một đơn chưa thanh toán.
+                            <a href="?route=booking/my" class="alert-link">Mở đơn đặt vé</a> để tiếp tục thanh toán.
+                        </div>
+                    <?php endif; ?>
 
                     <?php if (empty($groupedRows)): ?>
                         <div class="alert alert-warning">Suất chiếu này chưa có sơ đồ ghế.</div>
@@ -37,7 +48,7 @@
                                 <?php foreach ($seatsInRow as $seat): ?>
                                     <?php
                                     $status = $seat['status'];
-                                    $isSelectable = ($status === 'available') || ($status === 'held' && (int) $seat['held_by_user_id'] === (int) $user['id']);
+                                    $isSelectable = $status === 'available';
                                     $cssClass = 'seat-available';
                                     if (!$isSelectable) {
                                         $cssClass = ($status === 'held') ? 'seat-held' : 'seat-booked';
@@ -49,9 +60,13 @@
                                     if (stripos($seat['seat_type_name'], 'Couple') !== false && !$isSelectable) {
                                         $cssClass .= ' seat-couple';
                                     }
+                                    $seatTitle = $seat['seat_code'] . ' (' . $seat['seat_type_name'] . ') - ' . number_format((float) $seat['price']) . 'đ';
+                                    if ($status === 'held' && (int) $seat['held_by_user_id'] === (int) $user['id']) {
+                                        $seatTitle .= ' - Đang được giữ trong đơn của bạn';
+                                    }
                                     ?>
                                     <label class="seat-box <?= $cssClass ?>"
-                                           title="<?= htmlspecialchars($seat['seat_code'] . ' (' . $seat['seat_type_name'] . ') - ' . number_format((float) $seat['price']) . 'đ') ?>">
+                                           title="<?= htmlspecialchars($seatTitle) ?>">
                                         <?php if ($isSelectable): ?>
                                             <input type="checkbox"
                                                    name="show_seat_ids[]"

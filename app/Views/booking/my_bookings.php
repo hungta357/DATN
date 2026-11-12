@@ -30,13 +30,13 @@
                                 </td>
                                 <td class="fw-bold text-danger"><?= number_format((float) $b['total_amount']) ?>đ</td>
                                 <td>
-                                    <span class="badge <?= $b['status'] === 'confirmed' ? 'bg-success' : 'bg-warning text-dark' ?>">
+                                    <span class="badge <?= $b['status'] === 'confirmed' ? 'bg-success' : ($b['status'] === 'pending' ? 'bg-warning text-dark' : 'bg-secondary') ?>">
                                         <?= htmlspecialchars($b['status']) ?>
                                     </span>
                                 </td>
                                 <td>
                                     <a href="?route=booking/checkout&id=<?= (int) $b['id'] ?>" class="btn btn-sm btn-beta-buy">
-                                        <?= $b['status'] === 'pending' ? 'Thanh toán ngay' : 'Xem Vé QR' ?>
+                                        <?= $b['status'] === 'pending' ? 'Thanh toán ngay' : ($b['status'] === 'confirmed' ? 'Xem Vé QR' : 'Xem chi tiết') ?>
                                     </a>
                                 </td>
                             </tr>

@@ -69,6 +69,7 @@ Sau khi chạy `php setup.php`:
 - Khi tạo suất chiếu, hệ thống sinh danh sách ghế cho suất chiếu.
 - Quy trình giữ ghế sử dụng transaction và khóa bản ghi để hạn chế hai người đặt cùng ghế.
 - Thời gian giữ ghế mặc định là 10 phút.
+- Đơn chờ thanh toán hết hạn sẽ được đóng; ghế, tồn kho bắp nước và lượt sử dụng coupon được giải phóng để có thể đặt lại.
 - Việc xác nhận thanh toán và phát hành vé được xử lý trong transaction.
 - Các phương thức VNPay/MoMo trong database mới là cấu hình phương thức; **chưa được xem là tích hợp cổng thanh toán thật** nếu chưa có thông tin merchant, chữ ký và callback xác thực từ nhà cung cấp.
 - Mã QR cần được kiểm thử cùng thiết bị/quy trình quét thực tế trước khi nghiệm thu.

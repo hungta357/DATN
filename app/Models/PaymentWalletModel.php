@@ -83,7 +83,9 @@ class PaymentWalletModel extends BaseModel
             $this->db->commit();
             return $this->find($lockedWallet['id']);
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             throw $e;
         }
     }
