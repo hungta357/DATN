@@ -75,6 +75,7 @@
                         </div>
 
                         <form method="POST" action="?route=booking/pay">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <input type="hidden" name="booking_id" value="<?= (int) $booking['id'] ?>">
                             <?php foreach ($paymentMethods as $idx => $pm): ?>
                                 <div class="form-check mb-2 p-3 border rounded-3 bg-light">

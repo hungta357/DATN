@@ -23,8 +23,11 @@ class HomeController extends BaseController
             $status = null;
         }
         $keyword = trim($_GET['q'] ?? '');
+        $genreId = (int) ($_GET['genre_id'] ?? 0);
+        $genreId = $genreId > 0 ? $genreId : null;
+        $genres = $movieModel->getAllGenres();
 
-        $movies = $movieModel->getMovies($status, $keyword ?: null);
+        $movies = $movieModel->getMovies($status, $keyword ?: null, $genreId);
         $cinemaInfo = $userModel->getCinemaInfo();
         $showsByMovie = $showModel->getSellingShowsGroupedByMovie();
 
@@ -35,6 +38,8 @@ class HomeController extends BaseController
             'cinemaInfo' => $cinemaInfo,
             'currentStatus' => $status ?? 'all',
             'keyword' => $keyword,
+            'genres' => $genres,
+            'selectedGenreId' => $genreId,
         ]);
     }
 

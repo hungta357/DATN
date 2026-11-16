@@ -8,6 +8,7 @@
     </nav>
 
     <form method="POST" action="?route=booking/create" id="bookingForm">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
         <input type="hidden" name="show_id" value="<?= (int) $show['id'] ?>">
 
         <div class="row g-4">

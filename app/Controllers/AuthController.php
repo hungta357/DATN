@@ -10,13 +10,13 @@ class AuthController extends BaseController
     public function login(): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $email = trim($_POST['email'] ?? '');
+            $email = strtolower(trim($_POST['email'] ?? ''));
             $password = $_POST['password'] ?? '';
 
             $userModel = new UserModel();
             $user = $userModel->findByEmail($email);
 
-            if (!$user || !password_verify($password, $user['password'])) {
+            if (!$user || empty($user['password']) || !password_verify($password, (string) $user['password'])) {
                 $this->setFlash('danger', 'Tài khoản hoặc mật khẩu không chính xác.');
                 $this->redirect('?route=auth/login');
             }
@@ -26,6 +26,8 @@ class AuthController extends BaseController
                 $this->redirect('?route=auth/login');
             }
 
+            // Tao session ID moi sau khi dang nhap de tranh session fixation.
+            session_regenerate_id(true);
             unset($user['password']);
             $_SESSION['user'] = $user;
 
@@ -54,6 +56,7 @@ class AuthController extends BaseController
     public function adminLogout(): void
     {
         unset($_SESSION['user']);
+        session_regenerate_id(true);
         $this->setFlash('info', 'Bạn đã đăng xuất.');
         $this->redirect('?route=auth/login');
     }
@@ -62,12 +65,12 @@ class AuthController extends BaseController
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name = trim($_POST['name'] ?? '');
-            $email = trim($_POST['email'] ?? '');
+            $email = strtolower(trim($_POST['email'] ?? ''));
             $phone = trim($_POST['phone'] ?? '');
             $password = $_POST['password'] ?? '';
 
-            if ($name === '' || $email === '' || strlen($password) < 6) {
-                $this->setFlash('danger', 'Vui lòng nhập đầy đủ thông tin và mật khẩu tối thiểu 6 ký tự.');
+            if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8) {
+                $this->setFlash('danger', 'Vui lòng nhập đầy đủ thông tin và mật khẩu tối thiểu 8 ký tự.');
                 $this->redirect('?route=auth/register');
             }
 
@@ -78,16 +81,25 @@ class AuthController extends BaseController
             }
 
             try {
-                $userModel->registerCustomer([
+                $newUserId = $userModel->registerCustomer([
                     'name' => $name,
                     'email' => $email,
                     'phone' => $phone ?: null,
                     'password' => $password,
                 ]);
-                $this->setFlash('success', 'Đăng ký tài khoản thành công! Vui lòng đăng nhập.');
+
+                // Đọc lại tài khoản sau khi tạo để bảo đảm thông tin đăng nhập đã được lưu đúng.
+                $createdUser = $userModel->findByEmail($email);
+                if (!$createdUser || (int) $createdUser['id'] !== $newUserId || !password_verify($password, (string) $createdUser['password'])) {
+                    throw new \RuntimeException('Tài khoản đã tạo nhưng không xác minh được thông tin đăng nhập.');
+                }
+
+                $this->setFlash('success', 'Đăng ký tài khoản thành công! Bạn có thể đăng nhập bằng email và mật khẩu vừa tạo.');
                 $this->redirect('?route=auth/login');
             } catch (\Throwable $e) {
-                $this->setFlash('danger', 'Lỗi đăng ký: ' . $e->getMessage());
+                // Ghi chi tiết lỗi vào log máy chủ, không hiển thị thông tin database cho người dùng.
+                error_log('[CineNow register] ' . $e->getMessage());
+                $this->setFlash('danger', 'Không thể tạo tài khoản. Email hoặc số điện thoại có thể đã được sử dụng, hoặc database chưa được cấu hình đúng. Vui lòng kiểm tra lại.');
                 $this->redirect('?route=auth/register');
             }
         }

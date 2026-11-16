@@ -163,6 +163,35 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
                 width: 100%;
             }
         }
+
+        /* CineNow Premium Admin */
+        :root {
+            --beta-blue:#c6a15b; --beta-cyan:#e2c98f; --beta-orange:#e2b96f;
+            --beta-gradient:linear-gradient(135deg,#d9bd7b 0%,#b68b43 55%,#8e6a32 100%);
+            --admin-sidebar-bg:#191815; --admin-sidebar-hover:#2b2923; --admin-accent:#d7b56d;
+        }
+        body { background:#f5f3ee; color:#28251e; }
+        .admin-sidebar { background:linear-gradient(180deg,#1c1b17 0%,#121210 100%); border-right:1px solid rgba(215,181,109,.18); box-shadow:8px 0 28px rgba(25,22,16,.08); }
+        .admin-brand { border-bottom-color:rgba(215,181,109,.2); padding:23px 22px; }
+        .admin-brand-badge { background:linear-gradient(145deg,#e4ca8c,#9d7638); color:#171511; border-radius:13px; box-shadow:0 7px 22px rgba(215,181,109,.2); }
+        .admin-nav-label { color:#a99978; letter-spacing:1.35px; }
+        .admin-nav-link { border:1px solid transparent; border-radius:11px; padding:12px 14px; color:#d2cbbd; }
+        .admin-nav-link:hover { background:rgba(215,181,109,.1); color:#f5e7c6; border-color:rgba(215,181,109,.12); }
+        .admin-nav-link.active { background:linear-gradient(135deg,rgba(215,181,109,.24),rgba(142,106,50,.22)); color:#f2d99f; border-color:rgba(215,181,109,.3); box-shadow:inset 3px 0 #d7b56d,0 8px 20px rgba(0,0,0,.12); }
+        .admin-sidebar-footer { border-top-color:rgba(215,181,109,.2); background:rgba(0,0,0,.2); }
+        .admin-topbar { background:rgba(255,254,250,.94); border-bottom-color:#e8e1d3; box-shadow:0 5px 22px rgba(45,37,23,.04); padding:16px 30px; }
+        .admin-content { padding:30px; }
+        .admin-content .card { border:1px solid #ebe4d7 !important; border-radius:17px !important; box-shadow:0 10px 30px rgba(41,33,20,.055) !important; overflow:hidden; }
+        .admin-content .card-header { background:#fbfaf6 !important; border-bottom:1px solid #eee7da; }
+        .admin-content .table thead th { background:#f1ede4; color:#695633; border-bottom-color:#e5dccb; font-size:.76rem; text-transform:uppercase; letter-spacing:.045em; }
+        .admin-content .table td { border-color:#eee9df; }
+        .admin-content .form-control,.admin-content .form-select { border-radius:9px; border-color:#e3dccf; min-height:40px; }
+        .admin-content .form-control:focus,.admin-content .form-select:focus { border-color:#c6a15b; box-shadow:0 0 0 3px rgba(198,161,91,.14); }
+        .btn-beta-buy { background:var(--beta-gradient); color:#211b10 !important; border:1px solid #c4a15e; border-radius:9px; font-family:'Be Vietnam Pro',sans-serif; font-weight:800; box-shadow:0 6px 16px rgba(174,132,58,.17); }
+        .btn-beta-buy:hover { filter:brightness(1.07); transform:translateY(-1px); }
+        .admin-topbar .btn-outline-secondary { border-color:#ded5c5; color:#6d6048; }
+        .admin-topbar .btn-outline-secondary:hover { background:#292720; color:#f2d99f; border-color:#292720; }
+        @media(max-width:991.98px) { .admin-content{padding:20px 15px}.admin-topbar{padding:13px 16px} }
     </style>
 </head>
 <body>
@@ -179,6 +208,7 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
         </a>
 
         <ul class="admin-nav-list">
+            <?php if (!empty($isAdmin)): ?>
             <li class="admin-nav-label">Bảng điều khiển</li>
             <li>
                 <a href="?route=admin&tab=overview" class="admin-nav-link <?= $currentTab === 'overview' ? 'active' : '' ?>">
@@ -207,16 +237,23 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
                     <i class="bi bi-calendar2-week-fill"></i> 4. Lịch & Suất chiếu
                 </a>
             </li>
+            <?php endif; ?>
+            <?php if (!empty($isStaff) && empty($isAdmin)): ?>
+                <li class="admin-nav-label">Nghiệp vụ nhân viên</li>
+                <li><a href="?route=schedule" class="admin-nav-link"><i class="bi bi-calendar3"></i> Xem lịch chiếu</a></li>
+            <?php endif; ?>
             <li>
                 <a href="?route=admin&tab=bookings" class="admin-nav-link <?= $currentTab === 'bookings' ? 'active' : '' ?>">
                     <i class="bi bi-qr-code-scan"></i> 5-6. Đơn vé & Soát vé QR
                 </a>
             </li>
+            <?php if (!empty($isAdmin)): ?>
             <li>
                 <a href="?route=admin&tab=concessions" class="admin-nav-link <?= $currentTab === 'concessions' ? 'active' : '' ?>">
                     <i class="bi bi-cup-straw"></i> 7. Bắp nước & Mã giảm giá
                 </a>
             </li>
+            <?php endif; ?>
         </ul>
 
         <div class="admin-sidebar-footer">
@@ -225,7 +262,7 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
                     <div class="fw-bold text-white"><?= htmlspecialchars($adminUser['name']) ?></div>
                     <div class="text-secondary" style="font-size: 12px;"><?= htmlspecialchars($adminUser['email']) ?></div>
                 </div>
-                <span class="badge bg-danger text-uppercase">ADMIN</span>
+                <span class="badge <?= !empty($isStaff) && empty($isAdmin) ? 'bg-info text-dark' : 'bg-danger' ?> text-uppercase"><?= !empty($isStaff) && empty($isAdmin) ? 'STAFF' : 'ADMIN' ?></span>
             </div>
             <div class="d-grid gap-2 mt-2">
                 <a href="?route=home" target="_blank" class="btn btn-outline-info btn-sm">
@@ -243,7 +280,7 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
         <header class="admin-topbar">
             <div>
                 <h5 class="oswald-font fw-bold text-uppercase mb-0" style="color: var(--beta-blue);">
-                    <i class="bi bi-sliders text-danger me-2"></i>TRANG QUẢN TRỊ VIÊN — <?= htmlspecialchars(strtoupper($cinemaName)) ?>
+                    <i class="bi bi-sliders text-danger me-2"></i>KHU VỰC QUẢN TRỊ — <?= htmlspecialchars(strtoupper($cinemaName)) ?>
                 </h5>
             </div>
             <div class="d-flex align-items-center gap-3">

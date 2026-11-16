@@ -17,7 +17,9 @@ class AdminController extends BaseController
 {
     public function dashboard(): void
     {
-        $this->requireRole(['admin', 'staff']);
+        $currentUser = $this->requireRole(['admin', 'staff']);
+        $isAdmin = in_array('admin', $currentUser['roles'] ?? [], true);
+        $isStaff = !$isAdmin && in_array('staff', $currentUser['roles'] ?? [], true);
 
         $userModel = new UserModel();
         $movieModel = new MovieModel();
@@ -26,21 +28,30 @@ class AdminController extends BaseController
         $bookingModel = new BookingModel();
         $engagementModel = new EngagementModel();
 
-        $tab = $_GET['tab'] ?? 'overview';
+        $tab = $_GET['tab'] ?? ($isStaff ? 'bookings' : 'overview');
+
+        // Staff chỉ được vào quầy soát vé trong trang quản trị.
+        // Lịch chiếu được xem tại trang công khai ?route=schedule.
+        if ($isStaff && $tab !== 'bookings') {
+            $this->redirect('?route=admin&tab=bookings');
+        }
 
         $this->view('admin/dashboard', [
             'pageTitle' => 'Hệ Thống Quản Trị Rạp Chiếu Phim - CineNow Admin',
             'tab' => $tab,
+            'isAdmin' => $isAdmin,
+            'isStaff' => $isStaff,
             'cinemaInfo' => $userModel->getCinemaInfo(),
-            'users' => $userModel->getAllUsersWithRoles(),
-            'movies' => $movieModel->all('id DESC'),
-            'genres' => $movieModel->getAllGenres(),
-            'rooms' => $roomModel->all('id ASC'),
-            'seatTypes' => $roomModel->getAllSeatTypes(),
-            'shows' => $showModel->getAllShowsWithDetails(),
+            // Không tải dữ liệu quản trị nhạy cảm khi tài khoản là Staff.
+            'users' => $isAdmin ? $userModel->getAllUsersWithRoles() : [],
+            'movies' => $isAdmin ? $movieModel->all('id DESC') : [],
+            'genres' => $isAdmin ? $movieModel->getAllGenres() : [],
+            'rooms' => $isAdmin ? $roomModel->all('id ASC') : [],
+            'seatTypes' => $isAdmin ? $roomModel->getAllSeatTypes() : [],
+            'shows' => $isAdmin ? $showModel->getAllShowsWithDetails() : [],
             'bookings' => $bookingModel->getAllBookings(),
-            'concessions' => $engagementModel->getAllConcessions(),
-            'coupons' => $engagementModel->getAllCoupons(),
+            'concessions' => $isAdmin ? $engagementModel->getAllConcessions() : [],
+            'coupons' => $isAdmin ? $engagementModel->getAllCoupons() : [],
         ], 'layouts/admin');
     }
 
@@ -97,7 +108,7 @@ class AdminController extends BaseController
     // --- NHÁNH 2: THÊM / CẬP NHẬT PHIM ---
     public function saveMovie(): void
     {
-        $this->requireRole(['admin', 'staff']);
+        $this->requireRole(['admin']);
         $movieModel = new MovieModel();
 
         $title = trim($_POST['title'] ?? '');
@@ -127,7 +138,7 @@ class AdminController extends BaseController
 
     public function updateMovieStatus(): void
     {
-        $this->requireRole(['admin', 'staff']);
+        $this->requireRole(['admin']);
         $movieId = (int) ($_POST['movie_id'] ?? 0);
         $status = $_POST['status'] ?? 'now_showing';
 
@@ -169,7 +180,7 @@ class AdminController extends BaseController
     // --- NHÁNH 4: TẠO SUẤT CHIẾU (SHOW) & TỰ ĐỘNG SINH SHOW_SEATS ---
     public function saveShow(): void
     {
-        $this->requireRole(['admin', 'staff']);
+        $this->requireRole(['admin']);
         $showModel = new ShowModel();
 
         try {
@@ -212,7 +223,7 @@ class AdminController extends BaseController
     // --- NHÁNH 7: BẮP NƯỚC (CONCESSIONS) & MÃ GIẢM GIÁ (COUPONS) ---
     public function saveConcession(): void
     {
-        $this->requireRole(['admin', 'staff']);
+        $this->requireRole(['admin']);
         $engagementModel = new EngagementModel();
         $engagementModel->create([
             'name' => trim($_POST['name'] ?? ''),

@@ -13,7 +13,7 @@ class MovieModel extends BaseModel
 {
     protected string $table = 'movies';
 
-    public function getMovies(?string $status = null, ?string $keyword = null): array
+    public function getMovies(?string $status = null, ?string $keyword = null, ?int $genreId = null): array
     {
         $where = [];
         $params = [];
@@ -29,6 +29,11 @@ class MovieModel extends BaseModel
             $where[] = "(m.title LIKE :kw1 OR m.title_vi LIKE :kw2)";
             $params['kw1'] = "%{$keyword}%";
             $params['kw2'] = "%{$keyword}%";
+        }
+
+        if ($genreId !== null && $genreId > 0) {
+            $where[] = 'EXISTS (SELECT 1 FROM movie_genres filter_mg WHERE filter_mg.movie_id = m.id AND filter_mg.genre_id = :genre_id)';
+            $params['genre_id'] = $genreId;
         }
 
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';

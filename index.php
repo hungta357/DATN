@@ -1,6 +1,29 @@
 <?php
 
+// Session an toàn hơn: hạn chế session fixation và truy cập cookie từ JavaScript.
+$isHttps = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => $isHttps,
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
+ini_set('session.use_strict_mode', '1');
 session_start();
+
+if (empty($_SESSION['_token'])) {
+    $_SESSION['_token'] = bin2hex(random_bytes(32));
+}
+
+// Bảo vệ mọi biểu mẫu POST khỏi CSRF. Các form trong Views đều có trường _token.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $submittedToken = $_POST['_token'] ?? '';
+    if (!is_string($submittedToken) || !hash_equals($_SESSION['_token'], $submittedToken)) {
+        http_response_code(419);
+        exit('Phiên làm việc đã hết hạn hoặc yêu cầu không hợp lệ. Vui lòng tải lại trang và thử lại.');
+    }
+}
 
 $config = require __DIR__ . '/config/config.php';
 date_default_timezone_set($config['app']['timezone'] ?? 'Asia/Ho_Chi_Minh');
