@@ -253,6 +253,16 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
                     <i class="bi bi-qr-code-scan"></i> 5-6. Đơn vé & Soát vé QR
                 </a>
             </li>
+            <li>
+                <a href="?route=admin&tab=maintenance" class="admin-nav-link <?= $currentTab === 'maintenance' ? 'active' : '' ?>">
+                    <i class="bi bi-tools"></i> Sự cố & bảo trì
+                </a>
+            </li>
+            <li>
+                <a href="?route=admin&tab=groups" class="admin-nav-link <?= $currentTab === 'groups' ? 'active' : '' ?>">
+                    <i class="bi bi-people"></i> Đặt vé nhóm
+                </a>
+            </li>
             <?php if (!empty($isAdmin)): ?>
             <li>
                 <a href="?route=admin&tab=concessions" class="admin-nav-link <?= $currentTab === 'concessions' ? 'active' : '' ?>">

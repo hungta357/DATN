@@ -22,7 +22,7 @@
    php setup.php
    ```
 
-   Lệnh này tạo database `cinema_complete`, tạo bảng, nạp dữ liệu phim/thể loại mẫu, poster nội bộ và tạo lịch chiếu demo cho 7 ngày tiếp theo. Nếu database đã tồn tại, lệnh sẽ bổ sung dữ liệu còn thiếu; không xóa đơn đặt vé hiện có. Chỉ chạy trên môi trường phát triển; file `setup.php` đã được giới hạn chạy từ Terminal, không chạy qua trình duyệt.
+   Lệnh này tạo database `cinema_complete`, tạo bảng, nạp dữ liệu phim/thể loại mẫu, poster nội bộ và tạo lịch chiếu demo cho 7 ngày tiếp theo. Nếu database đã tồn tại, lệnh sẽ bổ sung dữ liệu còn thiếu (bao gồm bảng sự cố/bảo trì và đặt vé nhóm); không xóa đơn đặt vé hiện có. Chỉ chạy trên môi trường phát triển; file `setup.php` đã được giới hạn chạy từ Terminal, không chạy qua trình duyệt.
 
 6. Khởi động web server:
 
@@ -49,7 +49,7 @@ Sau khi chạy `php setup.php`:
 ## 4. Phân quyền
 
 - **Admin:** Quản lý toàn bộ hệ thống.
-- **Staff:** Xem lịch chiếu, xem danh sách đơn vé và thực hiện soát/xác nhận vé tại rạp. Staff không được truy cập các khu vực quản lý tài khoản, phim, phòng, suất chiếu, bắp nước hoặc mã giảm giá.
+- **Staff:** Xem lịch chiếu, xem danh sách đơn vé và thực hiện soát vé tại rạp; tạo báo cáo sự cố và cập nhật tiến độ các sự cố được phân công. Staff không được truy cập các khu vực quản lý tài khoản, phim, phòng, suất chiếu, bắp nước hoặc mã giảm giá.
 - **Customer:** Đăng ký, đăng nhập, tìm phim, xem lịch chiếu, đặt vé và quản lý vé cá nhân.
 
 ## 5. Các chức năng đang có trong source
@@ -63,6 +63,8 @@ Sau khi chạy `php setup.php`:
 - Ví nội bộ, lịch sử đặt vé, vé điện tử và mã QR.
 - Danh sách yêu thích, đánh giá phim, thông báo.
 - Khu vực quản trị phim, phòng/ghế, suất chiếu, đơn vé, soát vé và bắp nước/mã giảm giá.
+- Theo dõi sự cố/bảo trì: ghi nhận ảnh minh chứng, phân công nhân viên, đặt hạn xử lý, lưu lịch sử và Admin xác nhận hoàn thành. Ghế sự cố được khóa đặt; phòng có sự cố nghiêm trọng được tạm ngừng đến khi xác nhận khắc phục.
+- Đặt vé nhóm: tạo mã mời, mời thành viên đã đăng nhập, mỗi người chọn một ghế; người tạo trả chung hoặc các thành viên chia đều thanh toán qua ví nội bộ.
 
 ## 6. Ghi chú nghiệp vụ và giới hạn hiện tại
 

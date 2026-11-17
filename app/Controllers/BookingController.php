@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Core\BaseController;
 use App\Models\BookingModel;
 use App\Models\EngagementModel;
+use App\Models\GroupBookingModel;
 use App\Models\PaymentWalletModel;
 use App\Models\ShowModel;
 
@@ -99,9 +100,18 @@ class BookingController extends BaseController
         $paymentWalletModel = new PaymentWalletModel();
 
         $booking = $bookingModel->findBookingFull($bookingId);
-        if (!$booking || (int) $booking['user_id'] !== (int) $user['id']) {
+        $groupModel = new GroupBookingModel();
+        $group = $booking ? $groupModel->getGroupForBooking($bookingId) : null;
+        $isGroupMember = $group && $groupModel->isGroupMember((int) $group['id'], (int) $user['id']);
+        if (!$booking || ((int) $booking['user_id'] !== (int) $user['id'] && !$isGroupMember)) {
             $this->setFlash('danger', 'Không tìm thấy đơn đặt vé.');
             $this->redirect('?route=booking/my');
+        }
+        if ($group && $group['payment_mode'] === 'split' && $group['status'] === 'pending_payment') {
+            $this->redirect('?route=booking/group&code=' . urlencode($group['invite_code']));
+        }
+        if ($group && $group['status'] !== 'paid' && (int) $booking['user_id'] !== (int) $user['id']) {
+            $this->redirect('?route=booking/group&code=' . urlencode($group['invite_code']));
         }
 
         if ($booking['status'] === 'pending') {
@@ -149,9 +159,14 @@ class BookingController extends BaseController
             $this->setFlash('danger', 'Đơn hàng không hợp lệ.');
             $this->redirect('?route=booking/my');
         }
+        $group = (new GroupBookingModel())->getGroupForBooking($bookingId);
+        if ($group && $group['payment_mode'] === 'split' && $group['status'] === 'pending_payment') {
+            $this->redirect('?route=booking/group&code=' . urlencode($group['invite_code']));
+        }
 
         try {
             $bookingModel->confirmBookingAndIssueTickets($bookingId, $paymentMethodId);
+            (new GroupBookingModel())->markSharedGroupPaid($bookingId);
             $this->setFlash('success', 'Thanh toán thành công! Vé điện tử và mã QR đã được phát hành.');
             $this->redirect('?route=booking/checkout&id=' . $bookingId);
         } catch (\Throwable $e) {

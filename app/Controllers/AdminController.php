@@ -5,7 +5,9 @@ namespace App\Controllers;
 use App\Core\BaseController;
 use App\Models\BookingModel;
 use App\Models\EngagementModel;
+use App\Models\GroupBookingModel;
 use App\Models\MovieModel;
+use App\Models\MaintenanceModel;
 use App\Models\RoomModel;
 use App\Models\ShowModel;
 use App\Models\UserModel;
@@ -30,12 +32,14 @@ class AdminController extends BaseController
 
         $tab = $_GET['tab'] ?? ($isStaff ? 'bookings' : 'overview');
 
-        // Staff chỉ được vào quầy soát vé trong trang quản trị.
-        // Lịch chiếu được xem tại trang công khai ?route=schedule.
-        if ($isStaff && $tab !== 'bookings') {
+        // Staff chỉ được vào quầy soát vé và phân hệ sự cố/bảo trì.
+        if ($isStaff && !in_array($tab, ['bookings', 'maintenance'], true)) {
             $this->redirect('?route=admin&tab=bookings');
         }
 
+        $maintenanceModel = new MaintenanceModel();
+        $groupBookingModel = new GroupBookingModel();
+        $isMaintenanceTab = $tab === 'maintenance';
         $this->view('admin/dashboard', [
             'pageTitle' => 'Hệ Thống Quản Trị Rạp Chiếu Phim - CineNow Admin',
             'tab' => $tab,
@@ -52,6 +56,21 @@ class AdminController extends BaseController
             'bookings' => $bookingModel->getAllBookings(),
             'concessions' => $isAdmin ? $engagementModel->getAllConcessions() : [],
             'coupons' => $isAdmin ? $engagementModel->getAllCoupons() : [],
+            'maintenanceReports' => $isMaintenanceTab ? $maintenanceModel->getReports(
+                (int) $currentUser['id'],
+                $isAdmin,
+                [
+                    'room_id' => isset($_GET['maintenance_room']) && is_scalar($_GET['maintenance_room']) ? (string) $_GET['maintenance_room'] : '',
+                    'severity' => isset($_GET['maintenance_severity']) && is_string($_GET['maintenance_severity']) ? $_GET['maintenance_severity'] : '',
+                    'status' => isset($_GET['maintenance_status']) && is_string($_GET['maintenance_status']) ? $_GET['maintenance_status'] : '',
+                ]
+            ) : [],
+            'maintenanceCategories' => $isMaintenanceTab ? $maintenanceModel->getCategories() : [],
+            'maintenanceRooms' => $isMaintenanceTab ? $maintenanceModel->getRooms() : [],
+            'maintenanceSeats' => $isMaintenanceTab ? $maintenanceModel->getSeats() : [],
+            'maintenanceStaff' => $isMaintenanceTab && $isAdmin ? $maintenanceModel->getAssignableStaff() : [],
+            'maintenanceStats' => $isMaintenanceTab && $isAdmin ? $maintenanceModel->getMonthlyStats() : [],
+            'groupBookings' => $tab === 'groups' && $isAdmin ? $groupBookingModel->getAllGroupsForAdmin() : [],
         ], 'layouts/admin');
     }
 

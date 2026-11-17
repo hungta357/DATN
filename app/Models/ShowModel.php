@@ -122,10 +122,14 @@ class ShowModel extends BaseModel
 
         $this->db->beginTransaction();
         try {
-            $stmtRoom = $this->db->prepare('SELECT id FROM rooms WHERE id = :room_id FOR UPDATE');
+            $stmtRoom = $this->db->prepare('SELECT id, status FROM rooms WHERE id = :room_id FOR UPDATE');
             $stmtRoom->execute(['room_id' => $roomId]);
-            if (!$stmtRoom->fetchColumn()) {
+            $room = $stmtRoom->fetch();
+            if (!$room) {
                 throw new Exception('Phòng chiếu không tồn tại.');
+            }
+            if ($room['status'] !== 'active') {
+                throw new Exception('Không thể tạo suất chiếu cho phòng đang bảo trì hoặc ngừng hoạt động.');
             }
 
             $stmtOverlap = $this->db->prepare("

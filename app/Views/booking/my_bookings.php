@@ -1,7 +1,10 @@
 <div class="container py-4">
-    <h3 class="oswald-font fw-bold text-uppercase mb-3" style="color: var(--beta-blue);">
-        <i class="bi bi-ticket-perforated text-danger me-2"></i>Hành Trình Điện Ảnh & Vé Đã Đặt
-    </h3>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h3 class="oswald-font fw-bold text-uppercase mb-0" style="color: var(--beta-blue);">
+            <i class="bi bi-ticket-perforated text-danger me-2"></i>Hành Trình Điện Ảnh & Vé Đã Đặt
+        </h3>
+        <a href="?route=booking/group" class="btn btn-beta-buy"><i class="bi bi-people me-1"></i>Đặt vé nhóm</a>
+    </div>
 
     <?php if (empty($bookings)): ?>
         <div class="alert alert-info">Bạn chưa có đơn đặt vé nào tại rạp.</div>

@@ -54,6 +54,19 @@ try {
         ");
     }
 
+    // Schema bổ sung idempotent để nâng cấp cả database đã được tạo từ trước.
+    $maintenanceSql = file_get_contents(__DIR__ . '/database/maintenance_feature.sql');
+    if ($maintenanceSql === false) {
+        throw new RuntimeException('Không đọc được database/maintenance_feature.sql.');
+    }
+    $pdo->exec($maintenanceSql);
+
+    $groupBookingSql = file_get_contents(__DIR__ . '/database/group_booking_feature.sql');
+    if ($groupBookingSql === false) {
+        throw new RuntimeException('Không đọc được database/group_booking_feature.sql.');
+    }
+    $pdo->exec($groupBookingSql);
+
     // 3. Nạp dữ liệu mẫu từ seed_sample_data.sql
     $seedSql = file_get_contents(__DIR__ . '/database/seed_sample_data.sql');
     $pdo->exec($seedSql);

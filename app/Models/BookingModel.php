@@ -172,8 +172,9 @@ class BookingModel extends BaseModel
      * Nghiệp vụ #3: Khi thanh toán thành công, cập nhật booking, show_seats và tạo tickets
      * trong cùng một DB transaction.
      */
-    public function confirmBookingAndIssueTickets(int $bookingId, int $paymentMethodId): array
+    public function confirmBookingAndIssueTickets(int $bookingId, int $paymentMethodId, bool $prepaidByGroup = false): array
     {
+        $ownsTransaction = !$this->db->inTransaction();
         $stmtShowId = $this->db->prepare('SELECT show_id FROM bookings WHERE id = :id LIMIT 1');
         $stmtShowId->execute(['id' => $bookingId]);
         $showId = $stmtShowId->fetchColumn();
@@ -184,7 +185,9 @@ class BookingModel extends BaseModel
             $showId = null;
         }
 
-        $this->db->beginTransaction();
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
+        }
         try {
             $stmtBooking = $this->db->prepare("SELECT * FROM bookings WHERE id = :id FOR UPDATE");
             $stmtBooking->execute(['id' => $bookingId]);
@@ -194,7 +197,9 @@ class BookingModel extends BaseModel
                 throw new Exception('Không tìm thấy đơn đặt vé.');
             }
             if ($booking['status'] === 'confirmed') {
-                $this->db->commit();
+                if ($ownsTransaction) {
+                    $this->db->commit();
+                }
                 return $this->findBookingFull($bookingId);
             }
             if ($booking['status'] !== 'pending') {
@@ -255,7 +260,10 @@ class BookingModel extends BaseModel
             $txCode = 'PAY' . date('YmdHis') . strtoupper(bin2hex(random_bytes(6)));
 
             // Nếu thanh toán bằng Ví nội bộ (WALLET), kiểm tra & trừ số dư ví
-            if ($paymentCode === 'WALLET') {
+            if ($prepaidByGroup && $paymentCode !== 'WALLET') {
+                throw new Exception('Thanh toán nhóm phải được quyết toán qua ví nội bộ.');
+            }
+            if ($paymentCode === 'WALLET' && !$prepaidByGroup) {
                 $stmtWallet = $this->db->prepare("SELECT * FROM wallets WHERE user_id = :uid FOR UPDATE");
                 $stmtWallet->execute(['uid' => $booking['user_id']]);
                 $wallet = $stmtWallet->fetch();
@@ -297,6 +305,17 @@ class BookingModel extends BaseModel
             // 2. Cập nhật trạng thái booking -> confirmed
             $this->db->prepare("UPDATE bookings SET status = 'confirmed', updated_at = NOW() WHERE id = :id")
                      ->execute(['id' => $bookingId]);
+            $this->db->prepare("
+                UPDATE group_bookings
+                SET status = 'paid', updated_at = NOW()
+                WHERE booking_id = :booking_id AND payment_mode = 'shared' AND status = 'pending_payment'
+            ")->execute(['booking_id' => $bookingId]);
+            $this->db->prepare("
+                UPDATE group_members gm
+                INNER JOIN group_bookings gb ON gb.id = gm.group_id
+                SET gm.status = 'paid', gm.updated_at = NOW()
+                WHERE gb.booking_id = :booking_id AND gb.payment_mode = 'shared'
+            ")->execute(['booking_id' => $bookingId]);
 
             // 3. Cập nhật trạng thái show_seats -> booked và tạo vé (tickets) cho từng ghế
             $stmtUpdateSeat = $this->db->prepare("
@@ -337,13 +356,15 @@ class BookingModel extends BaseModel
                 'msg' => 'Đơn đặt vé ' . $booking['booking_code'] . ' đã được thanh toán thành công. Chúc bạn xem phim vui vẻ!',
             ]);
 
-            $this->db->commit();
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
             return $this->findBookingFull($bookingId);
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) {
+            if ($ownsTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            if ($e instanceof \DomainException && $showId !== null) {
+            if ($ownsTransaction && $e instanceof \DomainException && $showId !== null) {
                 (new ShowModel())->releaseExpiredHeldSeats($showId);
             }
             throw $e;
