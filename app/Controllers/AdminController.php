@@ -184,15 +184,40 @@ class AdminController extends BaseController
         $showModel = new ShowModel();
 
         try {
-            $startTime = date('Y-m-d H:i:s', strtotime($_POST['start_time']));
-            $endTime = date('Y-m-d H:i:s', strtotime($_POST['start_time'] . ' +2 hours'));
+            $startTimeInput = $_POST['start_time'] ?? null;
+            $movieIdInput = $_POST['movie_id'] ?? null;
+            $roomIdInput = $_POST['room_id'] ?? null;
+            $basePriceInput = $_POST['base_price'] ?? 80000;
+            $startTimestamp = is_string($startTimeInput) ? strtotime($startTimeInput) : false;
+            $movieId = is_string($movieIdInput) || is_int($movieIdInput)
+                ? filter_var($movieIdInput, FILTER_VALIDATE_INT)
+                : false;
+            $roomId = is_string($roomIdInput) || is_int($roomIdInput)
+                ? filter_var($roomIdInput, FILTER_VALIDATE_INT)
+                : false;
+
+            if (
+                $startTimestamp === false ||
+                $startTimestamp <= time() ||
+                $movieId === false ||
+                $movieId <= 0 ||
+                $roomId === false ||
+                $roomId <= 0 ||
+                !is_numeric($basePriceInput) ||
+                (float) $basePriceInput <= 0
+            ) {
+                throw new \InvalidArgumentException('Vui lòng chọn phim, phòng, thời gian tương lai và giá vé hợp lệ.');
+            }
+
+            $startTime = date('Y-m-d H:i:s', $startTimestamp);
+            $endTime = date('Y-m-d H:i:s', $startTimestamp + 2 * 60 * 60);
 
             $showId = $showModel->createShowWithSeats([
-                'movie_id' => (int) $_POST['movie_id'],
-                'room_id' => (int) $_POST['room_id'],
+                'movie_id' => (int) $movieId,
+                'room_id' => (int) $roomId,
                 'start_time' => $startTime,
                 'end_time' => $endTime,
-                'base_price' => (float) ($_POST['base_price'] ?? 80000),
+                'base_price' => (float) $basePriceInput,
                 'status' => 'selling',
             ]);
             $this->setFlash('success', "Đã tạo suất chiếu #{$showId} và tự động khởi tạo danh sách ghế (show_seats)!");
@@ -207,9 +232,14 @@ class AdminController extends BaseController
     public function checkInTicket(): void
     {
         $this->requireRole(['admin', 'staff']);
-        $ticketCode = trim($_POST['ticket_code'] ?? '');
+        $ticketCodeInput = $_POST['ticket_code'] ?? '';
+        $ticketCode = is_string($ticketCodeInput) ? trim($ticketCodeInput) : '';
 
         try {
+            if ($ticketCode === '') {
+                throw new \InvalidArgumentException('Vui lòng nhập mã vé cần soát.');
+            }
+
             $bookingModel = new BookingModel();
             $ticket = $bookingModel->checkInTicketByCode($ticketCode);
             $this->setFlash('success', "Soát vé thành công! Mã vé: {$ticket['ticket_code']} | Phim: {$ticket['movie_title']} | Phòng: {$ticket['room_name']} | Ghế: {$ticket['seat_code']}");

@@ -43,25 +43,37 @@ class BookingModel extends BaseModel
             if (!empty($concessionItems)) {
                 $stmtCon = $this->db->prepare("SELECT * FROM concessions WHERE id = :id AND status = 'active' FOR UPDATE");
                 foreach ($concessionItems as $conId => $qty) {
-                    $qty = (int) $qty;
+                    $concessionId = is_string($conId) || is_int($conId)
+                        ? filter_var($conId, FILTER_VALIDATE_INT)
+                        : false;
+                    $quantity = is_string($qty) || is_int($qty)
+                        ? filter_var($qty, FILTER_VALIDATE_INT)
+                        : false;
+                    if ($concessionId === false || $concessionId <= 0 || $quantity === false || $quantity < 0 || $quantity > 65535) {
+                        throw new Exception('Thông tin số lượng bắp nước không hợp lệ.');
+                    }
+
+                    $qty = (int) $quantity;
                     if ($qty <= 0) {
                         continue;
                     }
-                    $stmtCon->execute(['id' => (int) $conId]);
+                    $stmtCon->execute(['id' => (int) $concessionId]);
                     $con = $stmtCon->fetch();
-                    if ($con) {
-                        if ((int) $con['stock'] < $qty) {
-                            throw new Exception("Sản phẩm '{$con['name']}' không đủ tồn kho.");
-                        }
-                        $lineTotal = (float) $con['price'] * $qty;
-                        $concessionTotal += $lineTotal;
-                        $validConcessions[] = [
-                            'concession_id' => (int) $con['id'],
-                            'quantity' => $qty,
-                            'unit_price' => (float) $con['price'],
-                            'line_total' => $lineTotal,
-                        ];
+                    if (!$con) {
+                        throw new Exception('Một sản phẩm bắp nước đã ngừng bán. Vui lòng tải lại trang.');
                     }
+                    if ((int) $con['stock'] < $qty) {
+                        throw new Exception("Sản phẩm '{$con['name']}' không đủ tồn kho.");
+                    }
+
+                    $lineTotal = (float) $con['price'] * $qty;
+                    $concessionTotal += $lineTotal;
+                    $validConcessions[] = [
+                        'concession_id' => (int) $con['id'],
+                        'quantity' => $qty,
+                        'unit_price' => (float) $con['price'],
+                        'line_total' => $lineTotal,
+                    ];
                 }
             }
 
@@ -78,7 +90,7 @@ class BookingModel extends BaseModel
             }
 
             $totalAmount = max(0, $orderBeforeDiscount - $discountAmount);
-            $bookingCode = 'BK' . date('YmdHis') . rand(100, 999);
+            $bookingCode = 'BK' . date('YmdHis') . strtoupper(bin2hex(random_bytes(4)));
 
             $bookingId = $this->create([
                 'booking_code' => $bookingCode,
@@ -149,7 +161,9 @@ class BookingModel extends BaseModel
             $this->db->commit();
             return $this->findBookingFull($bookingId);
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             throw $e;
         }
     }
@@ -158,8 +172,18 @@ class BookingModel extends BaseModel
      * Nghiệp vụ #3: Khi thanh toán thành công, cập nhật booking, show_seats và tạo tickets
      * trong cùng một DB transaction.
      */
-    public function confirmBookingAndIssueTickets(int $bookingId, int $paymentMethodId, string $paymentCode = 'CASH'): array
+    public function confirmBookingAndIssueTickets(int $bookingId, int $paymentMethodId): array
     {
+        $stmtShowId = $this->db->prepare('SELECT show_id FROM bookings WHERE id = :id LIMIT 1');
+        $stmtShowId->execute(['id' => $bookingId]);
+        $showId = $stmtShowId->fetchColumn();
+        if ($showId !== false) {
+            $showId = (int) $showId;
+            (new ShowModel())->releaseExpiredHeldSeats($showId);
+        } else {
+            $showId = null;
+        }
+
         $this->db->beginTransaction();
         try {
             $stmtBooking = $this->db->prepare("SELECT * FROM bookings WHERE id = :id FOR UPDATE");
@@ -177,8 +201,58 @@ class BookingModel extends BaseModel
                 throw new Exception('Đơn đặt vé không ở trạng thái chờ thanh toán.');
             }
 
+            $showId = (int) $booking['show_id'];
+            $stmtShow = $this->db->prepare("
+                SELECT id
+                FROM shows
+                WHERE id = :show_id
+                  AND status IN ('scheduled', 'selling')
+                  AND start_time > NOW()
+                FOR UPDATE
+            ");
+            $stmtShow->execute(['show_id' => $showId]);
+            if (!$stmtShow->fetchColumn()) {
+                throw new Exception('Suất chiếu không còn mở bán hoặc đã bắt đầu.');
+            }
+
+            $stmtDetails = $this->db->prepare("
+                SELECT bd.*, ss.status AS seat_status, ss.held_by_user_id, ss.hold_expires_at,
+                       (ss.hold_expires_at > NOW()) AS hold_is_valid
+                FROM booking_details bd
+                INNER JOIN show_seats ss ON ss.id = bd.show_seat_id
+                WHERE bd.booking_id = :bid
+                FOR UPDATE
+            ");
+            $stmtDetails->execute(['bid' => $bookingId]);
+            $details = $stmtDetails->fetchAll();
+            if (!$details) {
+                throw new Exception('Đơn đặt vé không có ghế hợp lệ.');
+            }
+
+            foreach ($details as $detail) {
+                if (
+                    $detail['seat_status'] !== 'held' ||
+                    (int) $detail['held_by_user_id'] !== (int) $booking['user_id'] ||
+                    (int) $detail['hold_is_valid'] !== 1
+                ) {
+                    throw new \DomainException('Thời gian giữ ghế đã hết hoặc ghế không còn được giữ. Vui lòng đặt vé lại.');
+                }
+            }
+
+            $stmtPaymentMethod = $this->db->prepare("
+                SELECT code
+                FROM payment_methods
+                WHERE id = :id AND status = 'active'
+                FOR UPDATE
+            ");
+            $stmtPaymentMethod->execute(['id' => $paymentMethodId]);
+            $paymentCode = $stmtPaymentMethod->fetchColumn();
+            if (!$paymentCode) {
+                throw new Exception('Phương thức thanh toán không còn hoạt động. Vui lòng chọn phương thức khác.');
+            }
+
             $amount = (float) $booking['total_amount'];
-            $txCode = 'PAY' . date('YmdHis') . rand(1000, 9999);
+            $txCode = 'PAY' . date('YmdHis') . strtoupper(bin2hex(random_bytes(6)));
 
             // Nếu thanh toán bằng Ví nội bộ (WALLET), kiểm tra & trừ số dư ví
             if ($paymentCode === 'WALLET') {
@@ -202,7 +276,7 @@ class BookingModel extends BaseModel
                     'bid' => $bookingId,
                     'amount' => $amount,
                     'bal_after' => $balanceAfter,
-                    'tx_code' => 'WL' . date('YmdHis') . rand(100, 999),
+                    'tx_code' => 'WL' . date('YmdHis') . strtoupper(bin2hex(random_bytes(6))),
                     'note' => 'Thanh toán đơn đặt vé #' . $booking['booking_code'],
                 ]);
             }
@@ -225,14 +299,10 @@ class BookingModel extends BaseModel
                      ->execute(['id' => $bookingId]);
 
             // 3. Cập nhật trạng thái show_seats -> booked và tạo vé (tickets) cho từng ghế
-            $stmtDetails = $this->db->prepare("SELECT * FROM booking_details WHERE booking_id = :bid");
-            $stmtDetails->execute(['bid' => $bookingId]);
-            $details = $stmtDetails->fetchAll();
-
             $stmtUpdateSeat = $this->db->prepare("
                 UPDATE show_seats
                 SET status = 'booked', held_by_user_id = NULL, hold_expires_at = NULL, updated_at = NOW()
-                WHERE id = :ssid
+                WHERE id = :ssid AND status = 'held' AND held_by_user_id = :user_id
             ");
             $stmtTicket = $this->db->prepare("
                 INSERT IGNORE INTO tickets (booking_detail_id, ticket_code, qr_code, status, created_at, updated_at)
@@ -240,7 +310,14 @@ class BookingModel extends BaseModel
             ");
 
             foreach ($details as $detail) {
-                $stmtUpdateSeat->execute(['ssid' => $detail['show_seat_id']]);
+                $stmtUpdateSeat->execute([
+                    'ssid' => $detail['show_seat_id'],
+                    'user_id' => $booking['user_id'],
+                ]);
+                if ($stmtUpdateSeat->rowCount() !== 1) {
+                    throw new \DomainException('Ghế không còn được giữ. Vui lòng đặt vé lại.');
+                }
+
                 $ticketCode = 'TK-' . $booking['booking_code'] . '-' . $detail['id'];
                 $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' . urlencode($ticketCode);
                 $stmtTicket->execute([
@@ -263,7 +340,12 @@ class BookingModel extends BaseModel
             $this->db->commit();
             return $this->findBookingFull($bookingId);
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            if ($e instanceof \DomainException && $showId !== null) {
+                (new ShowModel())->releaseExpiredHeldSeats($showId);
+            }
             throw $e;
         }
     }
@@ -344,38 +426,55 @@ class BookingModel extends BaseModel
      */
     public function checkInTicketByCode(string $ticketCode): array
     {
-        $stmt = $this->db->prepare("
-            SELECT t.*, bd.booking_id, s.seat_code, b.booking_code, m.title AS movie_title, sh.start_time, r.name AS room_name
-            FROM tickets t
-            INNER JOIN booking_details bd ON bd.id = t.booking_detail_id
-            INNER JOIN bookings b ON b.id = bd.booking_id
-            INNER JOIN show_seats ss ON ss.id = bd.show_seat_id
-            INNER JOIN seats s ON s.id = ss.seat_id
-            INNER JOIN shows sh ON sh.id = b.show_id
-            INNER JOIN movies m ON m.id = sh.movie_id
-            INNER JOIN rooms r ON r.id = sh.room_id
-            WHERE t.ticket_code = :code
-            LIMIT 1
-        ");
-        $stmt->execute(['code' => trim($ticketCode)]);
-        $ticket = $stmt->fetch();
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare("
+                SELECT t.*, bd.booking_id, s.seat_code, b.booking_code, m.title AS movie_title, sh.start_time, r.name AS room_name
+                FROM tickets t
+                INNER JOIN booking_details bd ON bd.id = t.booking_detail_id
+                INNER JOIN bookings b ON b.id = bd.booking_id
+                INNER JOIN show_seats ss ON ss.id = bd.show_seat_id
+                INNER JOIN seats s ON s.id = ss.seat_id
+                INNER JOIN shows sh ON sh.id = b.show_id
+                INNER JOIN movies m ON m.id = sh.movie_id
+                INNER JOIN rooms r ON r.id = sh.room_id
+                WHERE t.ticket_code = :code
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $stmt->execute(['code' => trim($ticketCode)]);
+            $ticket = $stmt->fetch();
 
-        if (!$ticket) {
-            throw new Exception('Mã vé không tồn tại trong hệ thống.');
-        }
-        if ($ticket['status'] === 'used') {
-            throw new Exception("Vé {$ticketCode} đã được sử dụng lúc {$ticket['checked_in_at']}.");
-        }
-        if ($ticket['status'] !== 'valid') {
-            throw new Exception("Vé {$ticketCode} không hợp lệ (Trạng thái: {$ticket['status']}).");
-        }
+            if (!$ticket) {
+                throw new Exception('Mã vé không tồn tại trong hệ thống.');
+            }
+            if ($ticket['status'] === 'used') {
+                throw new Exception("Vé {$ticketCode} đã được sử dụng lúc {$ticket['checked_in_at']}.");
+            }
+            if ($ticket['status'] !== 'valid') {
+                throw new Exception("Vé {$ticketCode} không hợp lệ (Trạng thái: {$ticket['status']}).");
+            }
 
-        $this->db->prepare("UPDATE tickets SET status = 'used', checked_in_at = NOW(), updated_at = NOW() WHERE id = :id")
-                 ->execute(['id' => $ticket['id']]);
+            $stmtUpdate = $this->db->prepare("
+                UPDATE tickets
+                SET status = 'used', checked_in_at = NOW(), updated_at = NOW()
+                WHERE id = :id AND status = 'valid'
+            ");
+            $stmtUpdate->execute(['id' => $ticket['id']]);
+            if ($stmtUpdate->rowCount() !== 1) {
+                throw new Exception('Vé vừa được soát bởi một nhân viên khác. Vui lòng kiểm tra lại.');
+            }
 
-        $ticket['status'] = 'used';
-        $ticket['checked_in_at'] = date('Y-m-d H:i:s');
-        return $ticket;
+            $this->db->commit();
+            $ticket['status'] = 'used';
+            $ticket['checked_in_at'] = date('Y-m-d H:i:s');
+            return $ticket;
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
     }
 }
 

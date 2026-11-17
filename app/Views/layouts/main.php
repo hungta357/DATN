@@ -338,7 +338,13 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
         .cine-modal .modal-header { background:#1d1c19; border-bottom:1px solid rgba(215,181,109,.3); }
         .cine-empty { border-color:#ded5c5; background:#fffdfa; }
         .auth-premium-note { color:#8b7b5e; }
-        @media(max-width:767.98px) { .cine-hero{min-height:480px}.cine-hero-content{padding-top:72px;padding-bottom:72px}.beta-topbar .container{gap:8px}.beta-topbar .container>div:first-child{max-width:100%}.beta-nav-link{padding:9px 4px !important}.cine-section{padding:44px 0} }
+        .account-name-chip { display:inline-flex; align-items:center; gap:7px; max-width:210px; padding:5px 11px; border:1px solid rgba(215,181,109,.32); border-radius:999px; background:rgba(215,181,109,.1); color:#f0dfb8; font-weight:700; }
+        .account-name-chip i { color:#d7b56d; font-size:14px; }
+        .account-name-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .account-logout-button { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border:1px solid rgba(232,99,92,.45); border-radius:999px; background:rgba(167,52,52,.16); color:#ffe3e0 !important; font-weight:700; transition:background .2s ease,border-color .2s ease; }
+        .account-logout-button:hover { background:#a83232; border-color:#a83232; color:#fff !important; }
+        .account-logout-button:focus-visible { outline:2px solid #f2d99f; outline-offset:2px; }
+        @media(max-width:767.98px) { .cine-hero{min-height:480px}.cine-hero-content{padding-top:72px;padding-bottom:72px}.beta-topbar .container{gap:8px}.beta-topbar .container>div:first-child{max-width:100%}.beta-topbar .container>div:last-child{width:100%;justify-content:flex-start!important;gap:8px!important}.account-name-chip{max-width:160px}.beta-nav-link{padding:9px 4px !important}.cine-section{padding:44px 0} }
     </style>
 </head>
 <body>
@@ -367,9 +373,15 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
                 <a href="?route=wishlist"><i class="bi bi-heart me-1"></i>Yêu thích</a>
                 <span>|</span>
                 <a href="?route=notifications"><i class="bi bi-bell me-1"></i>Thông báo</a>
-                <span>|</span>
-                <span class="text-info fw-semibold"><?= htmlspecialchars($_SESSION['user']['name']) ?></span>
-                <a href="?route=auth/logout" class="text-danger ms-1">[Thoát]</a>
+                <span aria-hidden="true">|</span>
+                <span class="account-name-chip" title="<?= htmlspecialchars($_SESSION['user']['name'], ENT_QUOTES, 'UTF-8') ?>">
+                    <i class="bi bi-person-circle" aria-hidden="true"></i>
+                    <span class="account-name-text"><?= htmlspecialchars($_SESSION['user']['name']) ?></span>
+                </span>
+                <a href="?route=auth/logout" class="account-logout-button">
+                    <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                    <span>Đăng xuất</span>
+                </a>
             <?php else: ?>
                 <a href="?route=auth/login"><i class="bi bi-person-circle me-1"></i>Đăng nhập</a>
                 <span>|</span>
@@ -499,5 +511,38 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
     </div>
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-password-toggle]');
+        if (!button) return;
+
+        const input = document.getElementById(button.getAttribute('aria-controls'));
+        if (!input) return;
+
+        const showPassword = input.type === 'password';
+        const description = button.dataset.passwordLabel || 'mật khẩu';
+        input.type = showPassword ? 'text' : 'password';
+        button.textContent = showPassword ? 'Ẩn' : 'Hiện';
+        button.setAttribute('aria-label', `${showPassword ? 'Ẩn' : 'Hiện'} ${description}`);
+        button.setAttribute('aria-pressed', String(showPassword));
+    });
+
+    document.querySelectorAll('form[data-password-confirm]').forEach((form) => {
+        const password = form.querySelector('[name="password"]');
+        const confirmation = form.querySelector('[name="password_confirmation"]');
+        if (!password || !confirmation) return;
+
+        const validateConfirmation = () => {
+            confirmation.setCustomValidity(
+                confirmation.value && confirmation.value !== password.value
+                    ? 'Mật khẩu xác nhận không khớp.'
+                    : ''
+            );
+        };
+        password.addEventListener('input', validateConfirmation);
+        confirmation.addEventListener('input', validateConfirmation);
+        form.addEventListener('submit', validateConfirmation);
+    });
+</script>
 </body>
 </html>

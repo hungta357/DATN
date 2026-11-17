@@ -34,6 +34,13 @@ class UserModel extends BaseModel
         return $user ?: null;
     }
 
+    public function findByPhone(string $phone): bool
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM users WHERE phone = :phone LIMIT 1');
+        $stmt->execute(['phone' => trim($phone)]);
+        return (bool) $stmt->fetchColumn();
+    }
+
     /**
      * Đảm bảo tài khoản Quản trị viên (Admin) chuyên biệt luôn tồn tại trong DB
      * Tài khoản mặc định: admin@cinema.vn (hoặc admin) | Mật khẩu riêng: admin123
