@@ -1,54 +1,142 @@
-# Base Code PHP MVC - Hệ Thống Đặt Vé Xem Phim (`cinema_complete`)
+# CineNow — Website đặt vé xem phim tại rạp
 
-Bộ base code được xây dựng theo mô hình **PHP MVC (PDO + MySQL 8.0)** bám sát toàn bộ **7 nhánh bảng và 5 lưu ý nghiệp vụ** trong file [`database/cinema_complete.sql`](./database/cinema_complete.sql).
+Đồ án website đặt vé xem phim, xây dựng bằng **PHP 8+ theo mô hình MVC tự triển khai, PDO và MySQL 8.0**. Dự án hiện không sử dụng Laravel.
 
-## Cấu trúc Phân chia `backend/` (PHP) và `frontend/` (React)
+## 1. Công nghệ
 
-- **`backend/` (PHP Backend & REST API):**
-  - `backend/Core/`: `Database.php`, `BaseModel.php`, `BaseController.php`
-  - `backend/Models/`: `UserModel.php`, `MovieModel.php`, `RoomModel.php`, `ShowModel.php`, `BookingModel.php`, `PaymentWalletModel.php`, `EngagementModel.php`
-  - `backend/Controllers/`: `ApiController.php`, `AdminController.php`, `AuthController.php`, `HomeController.php`, `BookingController.php`, `WalletController.php`
-- **`frontend/` (React 18 Components & Giao diện):**
-  - `frontend/react/`: `AdminAnalyticsApp.js` (Thống kê chi tiết Admin), `CustomerMovieApp.js` (Khám phá phim & đặt vé nhanh), `SeatCouponApp.js` (Chọn ghế & kiểm tra mã giảm giá realtime)
-  - `frontend/views/`: Giao diện khách hàng (`layouts/main.php`, `home/`, `booking/`, `auth/`, `wallet/`) và giao diện Quản trị riêng biệt (`layouts/admin.php`, `admin/dashboard.php`)
+- PHP 8.1 trở lên (khuyến nghị PHP 8.2/8.3)
+- MySQL 8.0 hoặc tương thích
+- PDO MySQL extension
+- Bootstrap 5.3, Bootstrap Icons
+- JavaScript thuần
 
-## Cấu trúc 7 Nhánh Chính trong Code
+## 2. Cài đặt trên máy cá nhân
 
-| Nhánh Database | Các bảng trong MySQL | Model xử lý | Controller xử lý |
-| :--- | :--- | :--- | :--- |
-| **1. Roles / Users / Cinema Info** | `roles`, `users`, `user_roles`, `cinema_info` | `backend/Models/UserModel.php` | `AuthController`, `AdminController` |
-| **2. Movies / Genres** | `movies`, `genres`, `movie_genres` | `backend/Models/MovieModel.php` | `HomeController`, `AdminController`, `ApiController` |
-| **3. Rooms / Seats / Seat Types** | `rooms`, `seat_types`, `seats` | `backend/Models/RoomModel.php` | `AdminController` |
-| **4. Shows / Show Seats Inventory** | `shows`, `show_seats` | `backend/Models/ShowModel.php` | `BookingController`, `AdminController` |
-| **5. Bookings / Details / Tickets** | `bookings`, `booking_details`, `tickets` | `backend/Models/BookingModel.php` | `BookingController`, `AdminController`, `ApiController` |
-| **6. Payments / Methods / Wallets** | `payment_methods`, `payments`, `wallets`, `wallet_transactions` | `backend/Models/PaymentWalletModel.php` | `BookingController`, `WalletController` |
-| **7. Concessions / Coupons / Reviews / Wishlists / Notifications** | `concessions`, `booking_concessions`, `coupons`, `coupon_usages`, `reviews`, `wishlists`, `notifications` | `backend/Models/EngagementModel.php` | `HomeController`, `BookingController`, `AdminController`, `ApiController` |
+1. Cài Laragon/XAMPP và bật Apache (nếu dùng) cùng MySQL.
+2. Giải nén dự án, mở thư mục `DATN` bằng VS Code.
+3. Sao chép `.env.example` thành `.env`.
+4. Mở `.env`, chỉnh `DB_USERNAME` và `DB_PASSWORD` theo MySQL trên máy của bạn.
+5. Mở Terminal tại thư mục `DATN` và chạy:
 
----
+   ```bash
+   php setup.php
+   ```
 
-## Các Lưu Ý Nghiệp Vụ Đã Được Cài Đặt Sẵn
+   Lệnh này tạo database `cinema_complete`, tạo bảng, nạp dữ liệu phim/thể loại mẫu, poster nội bộ và tạo lịch chiếu demo cho 7 ngày tiếp theo. Nếu database đã tồn tại, lệnh sẽ bổ sung dữ liệu còn thiếu; không xóa đơn đặt vé hiện có. Chỉ chạy trên môi trường phát triển; file `setup.php` đã được giới hạn chạy từ Terminal, không chạy qua trình duyệt.
 
-1. **Tự động sinh `show_seats` khi tạo `shows`:** Phương thức `ShowModel::createShowWithSeats()` copy toàn bộ ghế từ `seats` của `room` sang `show_seats` với giá `base_price + seat_types.surcharge`.
-2. **Giữ ghế an toàn chống trùng lặp:** Phương thức `ShowModel::holdSeats()` sử dụng `DB Transaction + SELECT ... FOR UPDATE`, kiểm tra `status = 'available'`, gán `hold_expires_at` (10 phút) và tự động giải phóng ghế quá hạn.
-3. **Thanh toán & phát hành vé trong 1 DB Transaction:** Phương thức `BookingModel::confirmBookingAndIssueTickets()` cập nhật `bookings`, `show_seats`, trừ số dư `wallets` (nếu chọn ví nội bộ), lưu `payments`, sinh mã vé QR trong bảng `tickets` và gửi `notifications` trong cùng 1 transaction.
-4. **Không xóa cứng dữ liệu giao dịch:** Tài khoản, Phim, Suất chiếu được quản lý bằng trường `status`.
+6. Khởi động web server:
 
----
-
-## Hướng dẫn chạy nhanh
-
-1. **Cấu hình kết nối MySQL:** Kiểm tra thông tin trong [`config/config.php`](./config/config.php) (`DB_USERNAME`, `DB_PASSWORD`).
-2. **Khởi tạo Database & dữ liệu mẫu:**
-   - Cách 1 (Tự động): Chạy lệnh `php setup.php` hoặc truy cập `http://localhost:8000/setup.php` để tự động tạo DB `cinema_complete`, nạp dữ liệu mẫu, sinh ghế và suất chiếu.
-   - Cách 2 (Thủ công): Import [`database/cinema_complete.sql`](./database/cinema_complete.sql) và [`database/seed_sample_data.sql`](./database/seed_sample_data.sql) vào MySQL / phpMyAdmin.
-3. **Chạy Web Server:**
    ```bash
    php -S localhost:8000
    ```
-   Sau đó mở trình duyệt tại `http://localhost:8000`.
 
-### Tài khoản mặc định
-- **Admin (Quản trị viên):** `admin@cinema.vn` (hoặc `admin`) / Mật khẩu riêng: `admin123` (khi đăng nhập tại `?route=auth/login` sẽ tự động chuyển vào trang Quản trị riêng `?route=admin`)
-- **Staff (Nhân viên soát vé):** `staff@cinema.vn` / Mật khẩu: `password`
-- **Customer (Khách hàng):** `customer@cinema.vn` / Mật khẩu: `password`
+7. Mở trình duyệt tại `http://localhost:8000`.
 
+Có thể chạy `run-server.bat` trên Windows để tự khởi tạo database và mở server. Nếu PHP không nằm ở đường dẫn Laragon được khai báo sẵn trong file BAT, hãy bảo đảm lệnh `php` đã có trong PATH.
+
+## 3. Tài khoản mẫu
+
+Sau khi chạy `php setup.php`:
+
+| Vai trò | Email | Mật khẩu |
+|---|---|---|
+| Admin | `admin@cinema.vn` | `admin123` |
+| Staff | `staff@cinema.vn` | `password` |
+| Customer | `customer@cinema.vn` | `password` |
+
+**Lưu ý:** Đây là tài khoản phục vụ chạy thử đồ án. Hãy đổi mật khẩu trước khi triển khai thật và không dùng các mật khẩu mẫu trên môi trường công khai.
+
+## 4. Phân quyền
+
+- **Admin:** Quản lý toàn bộ hệ thống.
+- **Staff:** Xem lịch chiếu, xem danh sách đơn vé và thực hiện soát/xác nhận vé tại rạp. Staff không được truy cập các khu vực quản lý tài khoản, phim, phòng, suất chiếu, bắp nước hoặc mã giảm giá.
+- **Customer:** Đăng ký, đăng nhập, tìm phim, xem lịch chiếu, đặt vé và quản lý vé cá nhân.
+
+## 5. Các chức năng đang có trong source
+
+- Trang chủ, danh sách phim, tìm kiếm phim, lọc theo thể loại, chi tiết phim.
+- Bộ dữ liệu demo gồm 16 phim, nhiều thể loại và poster SVG được lưu ngay trong source để không phụ thuộc dịch vụ ảnh bên ngoài.
+- Script setup tự bổ sung lịch chiếu cho 7 ngày tiếp theo (tối đa 2 phòng × 5 khung giờ/ngày) và sinh sơ đồ ghế cho từng suất; chạy lại không tạo trùng suất cùng phòng/giờ.
+- Lịch chiếu, bảng giá, thông tin rạp và ưu đãi.
+- Đăng ký, đăng nhập, phân quyền theo vai trò.
+- Chọn ghế, tạo đơn đặt vé, thanh toán bằng phương thức đã cấu hình.
+- Ví nội bộ, lịch sử đặt vé, vé điện tử và mã QR.
+- Danh sách yêu thích, đánh giá phim, thông báo.
+- Khu vực quản trị phim, phòng/ghế, suất chiếu, đơn vé, soát vé và bắp nước/mã giảm giá.
+
+## 6. Ghi chú nghiệp vụ và giới hạn hiện tại
+
+- Khi tạo suất chiếu, hệ thống sinh danh sách ghế cho suất chiếu.
+- Quy trình giữ ghế sử dụng transaction và khóa bản ghi để hạn chế hai người đặt cùng ghế.
+- Thời gian giữ ghế mặc định là 10 phút.
+- Việc xác nhận thanh toán và phát hành vé được xử lý trong transaction.
+- Các phương thức VNPay/MoMo trong database mới là cấu hình phương thức; **chưa được xem là tích hợp cổng thanh toán thật** nếu chưa có thông tin merchant, chữ ký và callback xác thực từ nhà cung cấp.
+- Mã QR cần được kiểm thử cùng thiết bị/quy trình quét thực tế trước khi nghiệm thu.
+- Nên kiểm thử lại toàn bộ luồng đặt vé, hết hạn giữ ghế, hoàn/hủy và soát vé trên database riêng trước khi demo.
+
+## 7. Đưa source code lên GitHub
+
+Mở Terminal tại thư mục `DATN`:
+
+```bash
+git init
+git add .
+git status
+git commit -m "Initial commit - CineNow cinema booking"
+git branch -M main
+git remote add origin https://github.com/TEN_TAI_KHOAN/TEN_REPOSITORY.git
+git push -u origin main
+```
+
+Thay URL mẫu bằng link repository GitHub của nhóm.
+
+Nếu repository đã có remote `origin`, không chạy lại lệnh `git remote add origin`. Kiểm tra bằng:
+
+```bash
+git remote -v
+```
+
+Sau khi nhóm cập nhật code, lấy code mới:
+
+```bash
+git pull origin main
+```
+
+Đẩy thay đổi của bạn:
+
+```bash
+git add .
+git commit -m "Improve cinema booking website"
+git push origin main
+```
+
+Nếu làm trên nhánh riêng, thay `main` bằng tên nhánh của bạn.
+
+## 8. Quy tắc an toàn khi đẩy GitHub
+
+- Không đưa file `.env`, mật khẩu database, API key hoặc thông tin thanh toán thật lên GitHub.
+- Không xóa file `.gitignore`.
+- Chỉ đưa `.env.example` lên GitHub; mỗi thành viên tự tạo `.env` trên máy mình.
+- Không commit dữ liệu khách hàng thật hoặc bản sao database có thông tin cá nhân.
+- Trước khi commit, luôn kiểm tra `git status` và rà soát các file được staged.
+
+## 9. Cấu trúc thư mục
+
+```text
+DATN/
+├── app/
+│   ├── Controllers/
+│   ├── Core/
+│   ├── Models/
+│   └── Views/
+├── config/
+├── database/
+│   ├── cinema_complete.sql
+│   └── seed_sample_data.sql
+├── public/
+├── .env.example
+├── .gitignore
+├── index.php
+├── setup.php
+└── README.md
+```

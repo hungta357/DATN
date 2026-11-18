@@ -1,5 +1,5 @@
 -- =========================================================
--- CINEMA BOOKING DATABASE - Laravel 12 / PHP MVC + MySQL 8.0
+-- CINEMA BOOKING DATABASE - Laravel 12 + MySQL 8.0
 -- Mo hinh: mot rap duy nhat, co the co nhieu phong chieu
 -- Tao database moi de tranh ghi de database cu.
 -- =========================================================
@@ -147,6 +147,7 @@ CREATE TABLE shows (
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
     base_price DECIMAL(12,2) NOT NULL,
+    is_early TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = Suat chieu som (gia uu dai buoi sang)',
     status ENUM('scheduled','selling','cancelled','completed') NOT NULL DEFAULT 'scheduled',
     created_at TIMESTAMP NULL,
     updated_at TIMESTAMP NULL,
@@ -156,7 +157,8 @@ CREATE TABLE shows (
       ON UPDATE CASCADE ON DELETE RESTRICT,
     INDEX idx_shows_start_status (start_time, status),
     INDEX idx_shows_movie_start (movie_id, start_time),
-    INDEX idx_shows_room_start (room_id, start_time)
+    INDEX idx_shows_room_start (room_id, start_time),
+    INDEX idx_shows_is_early (is_early, start_time)
 ) ENGINE=InnoDB;
 
 -- Moi ghe trong moi suat chieu co mot dong trang thai va gia rieng.
@@ -429,5 +431,13 @@ INSERT IGNORE INTO payment_methods (name, code, description) VALUES
 ('Vi noi bo', 'WALLET', 'Thanh toan bang so du vi');
 
 INSERT IGNORE INTO cinema_info (id, name, address, phone, email)
-VALUES (1, 'CineNow', 'Tầng 3, Tòa nhà Imperial Plaza, 360 Giải Phóng, Hà Nội', '1900 636807', 'cskh@cinenow.vn');
+VALUES (1, 'Cinema', 'Cap nhat dia chi rap cua ban', NULL, NULL);
 
+-- LUU Y NGHIEP VU:
+-- 1. Khi tao show, tao cac dong show_seats tu danh sach seats cua room.
+-- 2. Khi giu ghe, dung DB transaction + SELECT ... FOR UPDATE,
+--    chi giu neu status='available'; dat hold_expires_at.
+-- 3. Khi thanh toan thanh cong, cap nhat booking, show_seats va tao tickets
+--    trong cung mot DB transaction.
+-- 4. Khong xoa cung users/movies/shows da phat sinh giao dich; uu tien status.
+-- 5. Laravel timestamps dung created_at/updated_at; khoa chinh BIGINT UNSIGNED.
