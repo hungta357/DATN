@@ -32,7 +32,7 @@ class EngagementModel extends BaseModel
 
     public function validateCoupon(string $code, float $orderAmount): array
     {
-        $stmt = $this->db->prepare("SELECT * FROM coupons WHERE code = :code AND status = 'active' LIMIT 1");
+        $stmt = $this->db->prepare("SELECT * FROM coupons WHERE code = :code AND status = 'active' LIMIT 1 FOR UPDATE");
         $stmt->execute(['code' => $code]);
         $coupon = $stmt->fetch();
 

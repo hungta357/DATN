@@ -18,14 +18,22 @@ class BookingController extends BaseController
     public function selectSeats(): void
     {
         $user = $this->requireAuth();
-        $showId = (int) ($_GET['show_id'] ?? 0);
+        $showIdInput = $_GET['show_id'] ?? null;
+        $showId = is_string($showIdInput) || is_int($showIdInput)
+            ? filter_var($showIdInput, FILTER_VALIDATE_INT)
+            : false;
+        $showId = $showId === false ? 0 : (int) $showId;
 
         $showModel = new ShowModel();
         $engagementModel = new EngagementModel();
 
         $show = $showModel->findShowWithDetails($showId);
-        if (!$show) {
-            $this->setFlash('danger', 'Suất chiếu không tồn tại.');
+        if (
+            !$show ||
+            !in_array($show['status'], ['scheduled', 'selling'], true) ||
+            strtotime($show['start_time']) <= time()
+        ) {
+            $this->setFlash('danger', 'Suất chiếu không tồn tại, đã bắt đầu hoặc đã đóng bán.');
             $this->redirect('?route=home');
         }
 
@@ -50,11 +58,19 @@ class BookingController extends BaseController
             $this->redirect('?route=home');
         }
 
-        $showId = (int) ($_POST['show_id'] ?? 0);
+        $showIdInput = $_POST['show_id'] ?? null;
+        $showId = is_string($showIdInput) || is_int($showIdInput)
+            ? filter_var($showIdInput, FILTER_VALIDATE_INT)
+            : false;
+        $showId = $showId === false ? 0 : (int) $showId;
         $showSeatIds = $_POST['show_seat_ids'] ?? [];
+        $showSeatIds = is_array($showSeatIds) ? $showSeatIds : [];
         $concessions = $_POST['concessions'] ?? [];
-        $couponCode = trim($_POST['coupon_code'] ?? '');
-        $note = trim($_POST['note'] ?? '');
+        $concessions = is_array($concessions) ? $concessions : [];
+        $couponInput = $_POST['coupon_code'] ?? '';
+        $noteInput = $_POST['note'] ?? '';
+        $couponCode = is_string($couponInput) ? trim($couponInput) : '';
+        $note = is_string($noteInput) ? trim($noteInput) : '';
 
         try {
             $bookingModel = new BookingModel();
@@ -78,7 +94,11 @@ class BookingController extends BaseController
     public function checkout(): void
     {
         $user = $this->requireAuth();
-        $bookingId = (int) ($_GET['id'] ?? 0);
+        $bookingIdInput = $_GET['id'] ?? null;
+        $bookingId = is_string($bookingIdInput) || is_int($bookingIdInput)
+            ? filter_var($bookingIdInput, FILTER_VALIDATE_INT)
+            : false;
+        $bookingId = $bookingId === false ? 0 : (int) $bookingId;
 
         $bookingModel = new BookingModel();
         $paymentWalletModel = new PaymentWalletModel();
@@ -89,8 +109,17 @@ class BookingController extends BaseController
             $this->redirect('?route=booking/my');
         }
 
-        $paymentMethods = $paymentWalletModel->getActivePaymentMethods();
-        $wallet = $paymentWalletModel->getOrCreateWallet((int) $user['id']);
+        if ($booking['status'] === 'pending') {
+            (new ShowModel())->releaseExpiredHeldSeats((int) $booking['show_id']);
+            $booking = $bookingModel->findBookingFull($bookingId);
+        }
+
+        $paymentMethods = $booking['status'] === 'pending'
+            ? $paymentWalletModel->getActivePaymentMethods()
+            : [];
+        $wallet = $booking['status'] === 'pending'
+            ? $paymentWalletModel->getOrCreateWallet((int) $user['id'])
+            : null;
 
         $this->view('booking/checkout', [
             'pageTitle' => 'Thanh toán & Vé #' . $booking['booking_code'],
@@ -107,8 +136,17 @@ class BookingController extends BaseController
             $this->redirect('?route=booking/my');
         }
 
-        $bookingId = (int) ($_POST['booking_id'] ?? 0);
-        $paymentMethodId = (int) ($_POST['payment_method_id'] ?? 1);
+        $bookingIdInput = $_POST['booking_id'] ?? null;
+        $bookingId = is_string($bookingIdInput) || is_int($bookingIdInput)
+            ? filter_var($bookingIdInput, FILTER_VALIDATE_INT)
+            : false;
+        $bookingId = $bookingId === false ? 0 : (int) $bookingId;
+        
+        $paymentMethodInput = $_POST['payment_method_id'] ?? null;
+        $paymentMethodId = is_string($paymentMethodInput) || is_int($paymentMethodInput)
+            ? filter_var($paymentMethodInput, FILTER_VALIDATE_INT)
+            : false;
+        $paymentMethodId = $paymentMethodId === false ? 0 : (int) $paymentMethodId;
 
         $bookingModel = new BookingModel();
         $paymentWalletModel = new PaymentWalletModel();
@@ -129,25 +167,25 @@ class BookingController extends BaseController
         }
 
         try {
-            // 1. Xác nhận đơn hàng và phát hành vé (giữ nguyên logic gốc của nhóm)
+            // 1. Xác nhận đơn hàng và phát hành vé
             $bookingModel->confirmBookingAndIssueTickets($bookingId, $paymentMethodId, $selectedCode);
 
             // 2. Lấy lại toàn bộ thông tin mới nhất sau khi đã phát hành vé để đổ vào email
             $updatedBooking = $bookingModel->findBookingFull($bookingId);
 
-            // 3. Tích hợp trực tiếp mã gửi mail vào đây
+            // 3. Tích hợp gửi mail tự động qua PHPMailer
             $mail = new PHPMailer(true);
             try {
                 $mail->isSMTP();
                 $mail->Host       = 'smtp.gmail.com';
                 $mail->SMTPAuth   = true;
-                $mail->Username   = 'tuanp201100@gmail.com'; // <-- Thay bằng email của bạn
-                $mail->Password   = 'hflx pofr utyh wqld';    // <-- Thay bằng App Password 16 ký tự của Gmail
+                $mail->Username   = 'tuanp201100@gmail.com'; 
+                $mail->Password   = 'hflx pofr utyh wqld';    
                 $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
                 $mail->Port       = 587;
                 $mail->CharSet    = 'UTF-8';
 
-                $mail->setFrom('your_email@gmail.com', 'CineNow Cinema');
+                $mail->setFrom('tuanp201100@gmail.com', 'CineNow Cinema');
                 $mail->addAddress($user['email'], $user['full_name'] ?? 'Khách hàng');
 
                 $orderCode  = $updatedBooking['booking_code'] ?? '';
@@ -211,9 +249,7 @@ class BookingController extends BaseController
                 ";
                 $mail->send();
             } catch (\Exception $mailEx) {
-                // Sửa dòng này tạm thời để in lỗi ra màn hình khi bạn bấm thanh toán
-                echo "Lỗi gửi mail: " . $mailEx->getMessage();
-                exit;
+                error_log("Email sending failed: " . $mailEx->getMessage());
             }
 
             $this->setFlash('success', 'Thanh toán thành công! Vé điện tử, mã QR đã được phát hành và gửi về email của bạn.');

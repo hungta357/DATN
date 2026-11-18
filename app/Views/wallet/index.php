@@ -10,6 +10,7 @@
                     <h2 class="fw-bold text-danger mb-3"><?= number_format((float) $wallet['balance']) ?> <?= htmlspecialchars($wallet['currency']) ?></h2>
 
                     <form method="POST" action="?route=wallet/deposit">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                         <div class="mb-2">
                             <label class="form-label small fw-semibold">Số tiền nạp (VNĐ)</label>
                             <input type="number" name="amount" value="200000" min="10000" step="10000" class="form-control form-control-sm" required>

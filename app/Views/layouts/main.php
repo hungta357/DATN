@@ -260,6 +260,91 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
             border-top: 3px solid var(--beta-blue);
             color: #444;
         }
+
+        /* ===== CINENOW PREMIUM DESIGN SYSTEM ===== */
+        :root {
+            --beta-blue: #c6a15b;
+            --beta-cyan: #e2c98f;
+            --beta-orange: #e2b96f;
+            --beta-gradient: linear-gradient(135deg, #d9bd7b 0%, #b68b43 55%, #8e6a32 100%);
+            --premium-ink: #171717;
+            --premium-panel: #22211f;
+            --premium-gold: #d7b56d;
+            --premium-cream: #f7f5f0;
+        }
+        html { scroll-behavior: smooth; }
+        body { background: var(--premium-cream); color: #25231f; }
+        .beta-topbar { background:#11110f; color:#c9c4b9; padding:9px 0; font-size:11px; letter-spacing:.025em; }
+        .beta-topbar a { color:#e5dfd2; transition:color .2s ease; }
+        .beta-topbar a:hover { color:var(--premium-gold); }
+        .beta-navbar { background:rgba(22,22,20,.97); box-shadow:0 8px 30px rgba(0,0,0,.16); padding:15px 0; border-bottom:1px solid rgba(215,181,109,.22); }
+        .beta-logo-mark { border-radius:13px; background:linear-gradient(145deg,#e4ca8c,#9d7638); color:#171511; box-shadow:0 7px 22px rgba(215,181,109,.22); }
+        .beta-nav-link { color:#e9e4d9 !important; font-family:'Be Vietnam Pro',sans-serif; font-size:11px; font-weight:800; letter-spacing:.075em; padding:12px 11px !important; }
+        .beta-nav-link:hover,.beta-nav-link.active { color:var(--premium-gold) !important; }
+        .beta-navbar .navbar-toggler { border-color:rgba(255,255,255,.24); }
+        .beta-navbar .navbar-toggler-icon { filter:invert(1); }
+        .beta-navbar .input-group { border:1px solid rgba(215,181,109,.3); border-radius:999px; overflow:hidden; }
+        .beta-navbar .form-control { background:#2a2926; color:#fff; border:0; min-height:38px; padding-left:15px; }
+        .beta-navbar .form-control::placeholder { color:#aaa397; }
+        .beta-navbar .btn-outline-primary { color:var(--premium-gold); border:0; background:#2a2926; padding:0 14px; }
+        .beta-navbar .btn-outline-primary:hover { color:#171511; background:var(--premium-gold); }
+        .beta-footer { background:#171715; border-top:1px solid rgba(215,181,109,.38); color:#c9c4b9; padding-top:48px !important; padding-bottom:38px !important; }
+        .beta-footer h5,.beta-footer h6 { color:#e4c987 !important; }
+        .beta-footer .text-muted,.beta-footer .text-secondary { color:#aaa397 !important; }
+        .beta-footer a { color:#c9c4b9 !important; transition:color .2s; }
+        .beta-footer a:hover { color:var(--premium-gold) !important; }
+        .beta-footer .bg-light { background:#24231f !important; border-color:rgba(215,181,109,.2) !important; }
+        .beta-footer .bg-light .text-secondary { color:#c9c4b9 !important; }
+        .btn-beta-buy,.cine-btn-primary,.cine-buy { background:var(--beta-gradient) !important; color:#211b10 !important; border:1px solid #c4a15e !important; box-shadow:0 8px 22px rgba(174,132,58,.2); font-weight:900; }
+        .btn-beta-buy:hover,.cine-btn-primary:hover,.cine-buy:hover { filter:brightness(1.08); color:#17130c !important; transform:translateY(-2px); }
+        .beta-movie-tab.active::after { background:var(--beta-gradient); }
+        .beta-movie-title,.cine-movie-title { color:#29251e; }
+        .beta-movie-title:hover,.cine-movie-title:hover { color:#a47b38; }
+        .beta-poster-wrap,.cine-poster { box-shadow:0 14px 32px rgba(30,26,18,.16); }
+        .seat-selected { background:#b58a43 !important; box-shadow:0 0 0 2px #e6cf9e !important; }
+        .screen-bar { background:linear-gradient(180deg,#d4b36e 0%,rgba(212,179,110,.04) 100%); border-top-color:#c39b52; }
+        main { flex:1 0 auto; }
+        main > .container { padding-top:30px; padding-bottom:38px; }
+        main .card { border:1px solid rgba(72,61,40,.08) !important; border-radius:18px !important; box-shadow:0 12px 35px rgba(36,31,21,.07) !important; }
+        main .card-header { background:#fbfaf7 !important; }
+        main .form-control,main .form-select { border-radius:10px; border-color:#e5dfd3; min-height:43px; }
+        main .form-control:focus,main .form-select:focus { border-color:#c6a15b; box-shadow:0 0 0 3px rgba(198,161,91,.15); }
+        main .breadcrumb a { color:#9b773d; }
+        main .table thead th { background:#f2eee5; color:#5a4a2c; border-bottom-color:#e4dac7; font-size:.78rem; letter-spacing:.04em; text-transform:uppercase; }
+        main .table td { border-color:#eee9df; }
+        .cine-home { --cine-ink:#211e18; --cine-muted:#8b8478; --cine-primary:#b58b48; --cine-accent:#e5c987; color:#25231f; }
+        .cine-hero { min-height:590px; background:#171612; }
+        .cine-hero::after { background:linear-gradient(90deg,rgba(13,13,12,.97) 0%,rgba(18,17,14,.84) 42%,rgba(18,17,14,.2) 100%),linear-gradient(0deg,rgba(13,13,12,.72),transparent 52%); }
+        .cine-hero-content { max-width:780px; padding-top:100px; padding-bottom:100px; }
+        .cine-eyebrow { color:#e8cc8f; letter-spacing:.19em; }
+        .cine-hero h1 { font-size:clamp(2.5rem,5.5vw,5rem); text-shadow:0 5px 30px rgba(0,0,0,.35); }
+        .cine-btn-primary { border-radius:999px; padding:14px 25px; background:var(--beta-gradient) !important; color:#211b10 !important; }
+        .cine-btn-ghost { border-radius:999px; border-color:rgba(231,211,165,.55); }
+        .cine-btn-ghost:hover { background:#e5c987; border-color:#e5c987; color:#201b12; }
+        .cine-benefits { background:#1d1c19; border-top:1px solid rgba(215,181,109,.24); border-bottom:1px solid rgba(215,181,109,.18); }
+        .cine-benefit-icon { color:#e4c987; background:rgba(215,181,109,.12); border:1px solid rgba(215,181,109,.17); }
+        .cine-section { padding:68px 0; }
+        .cine-kicker { color:#a47b38; }
+        .cine-section-title { color:#211e18; }
+        .cine-filter { border-color:#e9e2d5; border-radius:18px; box-shadow:0 14px 40px rgba(44,36,22,.06); }
+        .cine-tab { border-color:#e4ddcf; color:#6e675a; }
+        .cine-tab:hover,.cine-tab.active { color:#211b10; background:var(--beta-gradient); border-color:#c6a15b; }
+        .cine-movie-card { border-color:#eae4d9; border-radius:18px; box-shadow:0 12px 32px rgba(35,29,19,.07); }
+        .cine-movie-card:hover { box-shadow:0 22px 44px rgba(35,29,19,.15); }
+        .cine-rating { background:#e9d39f; color:#332817; }
+        .cine-detail { border-color:#ded5c5; color:#655a46; }
+        .cine-detail:hover { color:#8c682f; border-color:#c6a15b; }
+        .cine-time-slot:hover { background:#b58b48; border-color:#b58b48; color:#fff; }
+        .cine-modal .modal-header { background:#1d1c19; border-bottom:1px solid rgba(215,181,109,.3); }
+        .cine-empty { border-color:#ded5c5; background:#fffdfa; }
+        .auth-premium-note { color:#8b7b5e; }
+        .account-name-chip { display:inline-flex; align-items:center; gap:7px; max-width:210px; padding:5px 11px; border:1px solid rgba(215,181,109,.32); border-radius:999px; background:rgba(215,181,109,.1); color:#f0dfb8; font-weight:700; }
+        .account-name-chip i { color:#d7b56d; font-size:14px; }
+        .account-name-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .account-logout-button { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border:1px solid rgba(232,99,92,.45); border-radius:999px; background:rgba(167,52,52,.16); color:#ffe3e0 !important; font-weight:700; transition:background .2s ease,border-color .2s ease; }
+        .account-logout-button:hover { background:#a83232; border-color:#a83232; color:#fff !important; }
+        .account-logout-button:focus-visible { outline:2px solid #f2d99f; outline-offset:2px; }
+        @media(max-width:767.98px) { .cine-hero{min-height:480px}.cine-hero-content{padding-top:72px;padding-bottom:72px}.beta-topbar .container{gap:8px}.beta-topbar .container>div:first-child{max-width:100%}.beta-topbar .container>div:last-child{width:100%;justify-content:flex-start!important;gap:8px!important}.account-name-chip{max-width:160px}.beta-nav-link{padding:9px 4px !important}.cine-section{padding:44px 0} }
     </style>
 </head>
 <body>
@@ -288,9 +373,15 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
                 <a href="?route=wishlist"><i class="bi bi-heart me-1"></i>Yêu thích</a>
                 <span>|</span>
                 <a href="?route=notifications"><i class="bi bi-bell me-1"></i>Thông báo</a>
-                <span>|</span>
-                <span class="text-info fw-semibold"><?= htmlspecialchars($_SESSION['user']['name']) ?></span>
-                <a href="?route=auth/logout" class="text-danger ms-1">[Thoát]</a>
+                <span aria-hidden="true">|</span>
+                <span class="account-name-chip" title="<?= htmlspecialchars($_SESSION['user']['name'], ENT_QUOTES, 'UTF-8') ?>">
+                    <i class="bi bi-person-circle" aria-hidden="true"></i>
+                    <span class="account-name-text"><?= htmlspecialchars($_SESSION['user']['name']) ?></span>
+                </span>
+                <a href="?route=auth/logout" class="account-logout-button">
+                    <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                    <span>Đăng xuất</span>
+                </a>
             <?php else: ?>
                 <a href="?route=auth/login"><i class="bi bi-person-circle me-1"></i>Đăng nhập</a>
                 <span>|</span>
@@ -420,5 +511,38 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
     </div>
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-password-toggle]');
+        if (!button) return;
+
+        const input = document.getElementById(button.getAttribute('aria-controls'));
+        if (!input) return;
+
+        const showPassword = input.type === 'password';
+        const description = button.dataset.passwordLabel || 'mật khẩu';
+        input.type = showPassword ? 'text' : 'password';
+        button.textContent = showPassword ? 'Ẩn' : 'Hiện';
+        button.setAttribute('aria-label', `${showPassword ? 'Ẩn' : 'Hiện'} ${description}`);
+        button.setAttribute('aria-pressed', String(showPassword));
+    });
+
+    document.querySelectorAll('form[data-password-confirm]').forEach((form) => {
+        const password = form.querySelector('[name="password"]');
+        const confirmation = form.querySelector('[name="password_confirmation"]');
+        if (!password || !confirmation) return;
+
+        const validateConfirmation = () => {
+            confirmation.setCustomValidity(
+                confirmation.value && confirmation.value !== password.value
+                    ? 'Mật khẩu xác nhận không khớp.'
+                    : ''
+            );
+        };
+        password.addEventListener('input', validateConfirmation);
+        confirmation.addEventListener('input', validateConfirmation);
+        form.addEventListener('submit', validateConfirmation);
+    });
+</script>
 </body>
 </html>

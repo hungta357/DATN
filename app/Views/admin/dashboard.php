@@ -1,12 +1,16 @@
 <div>
     <ul class="nav nav-pills mb-4 gap-2">
-        <li class="nav-item"><a class="nav-link <?= $tab === 'overview' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=overview">Tổng quan</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'users' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=users">1. Rạp, Users & Mật khẩu Admin</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'movies' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=movies">2. Phim & Thể loại</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'rooms' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=rooms">3. Phòng & Ghế</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'shows' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=shows">4. Suất chiếu (Shows)</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'bookings' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=bookings">5-6. Đơn vé & Soát vé QR</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'concessions' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=concessions">7. Bắp nước & Coupon</a></li>
+        <?php if (!empty($isAdmin)): ?>
+            <li class="nav-item"><a class="nav-link <?= $tab === 'overview' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=overview">Tổng quan</a></li>
+            <li class="nav-item"><a class="nav-link <?= $tab === 'users' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=users">1. Rạp, Users & Mật khẩu Admin</a></li>
+            <li class="nav-item"><a class="nav-link <?= $tab === 'movies' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=movies">2. Phim & Thể loại</a></li>
+            <li class="nav-item"><a class="nav-link <?= $tab === 'rooms' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=rooms">3. Phòng & Ghế</a></li>
+            <li class="nav-item"><a class="nav-link <?= $tab === 'shows' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=shows">4. Suất chiếu (Shows)</a></li>
+            <li class="nav-item"><a class="nav-link <?= $tab === 'concessions' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=concessions">7. Bắp nước & Coupon</a></li>
+        <?php elseif (!empty($isStaff)): ?>
+            <li class="nav-item"><a class="nav-link bg-white border text-dark" href="?route=schedule"><i class="bi bi-calendar3 me-1"></i>Xem lịch chiếu</a></li>
+        <?php endif; ?>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'bookings' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=bookings">Đơn vé & Soát vé QR</a></li>
     </ul>
 
     <?php if ($tab === 'overview'): ?>
@@ -53,6 +57,7 @@
                     <div class="card-header bg-white fw-bold">Thông Tin Rạp Chiếu Lẻ Duy Nhất (Bảng <code>cinema_info</code>)</div>
                     <div class="card-body">
                         <form method="POST" action="?route=admin/cinema/save">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="mb-2">
                                 <label class="form-label small">Tên rạp</label>
                                 <input type="text" name="name" value="<?= htmlspecialchars($cinemaInfo['name']) ?>" class="form-control form-control-sm" required>
@@ -84,6 +89,7 @@
                     </div>
                     <div class="card-body">
                         <form method="POST" action="?route=admin/password/change">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="mb-2">
                                 <label class="form-label small">Mật khẩu Admin hiện tại</label>
                                 <input type="password" name="current_password" class="form-control form-control-sm" required placeholder="Nhập mật khẩu hiện tại">
@@ -118,6 +124,7 @@
                                         <td><span class="badge <?= $u['status'] === 'active' ? 'bg-success' : 'bg-danger' ?>"><?= htmlspecialchars($u['status']) ?></span></td>
                                         <td>
                                             <form method="POST" action="?route=admin/user/status" class="d-flex gap-1">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                                                 <input type="hidden" name="user_id" value="<?= (int) $u['id'] ?>">
                                                 <select name="status" class="form-select form-select-sm">
                                                     <option value="active" <?= $u['status'] === 'active' ? 'selected' : '' ?>>active</option>
@@ -142,6 +149,7 @@
                     <div class="card-header bg-white fw-bold">Thêm Phim Mới (Bảng <code>movies</code>)</div>
                     <div class="card-body">
                         <form method="POST" action="?route=admin/movie/save">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="mb-2">
                                 <label class="form-label small">Tên phim (Gốc) *</label>
                                 <input type="text" name="title" class="form-control form-control-sm" required>
@@ -205,6 +213,7 @@
                                         <td><span class="badge bg-secondary"><?= htmlspecialchars($m['status']) ?></span></td>
                                         <td>
                                             <form method="POST" action="?route=admin/movie/status" class="d-flex gap-1">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                                                 <input type="hidden" name="movie_id" value="<?= (int) $m['id'] ?>">
                                                 <select name="status" class="form-select form-select-sm">
                                                     <?php foreach (['now_showing', 'coming_soon', 'ended', 'hidden'] as $st): ?>
@@ -230,6 +239,7 @@
                     <div class="card-header bg-white fw-bold">Tạo Phòng Chiếu & Sơ Đồ Ghế Tự Động</div>
                     <div class="card-body">
                         <form method="POST" action="?route=admin/room/save">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="mb-2">
                                 <label class="form-label small">Tên phòng chiếu *</label>
                                 <input type="text" name="name" class="form-control form-control-sm" required placeholder="Phòng 03 - Standard">
@@ -269,6 +279,7 @@
                                         <td><?= (int) $r['capacity'] ?> ghế</td>
                                         <td>
                                             <form method="POST" action="?route=admin/room/generate-seats">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                                                 <input type="hidden" name="room_id" value="<?= (int) $r['id'] ?>">
                                                 <button class="btn btn-sm btn-outline-primary">Sinh sơ đồ ghế chuẩn (A1..D6)</button>
                                             </form>
@@ -289,6 +300,7 @@
                     <div class="card-header bg-white fw-bold">Tạo Suất Chiếu Mới (Tự động sinh <code>show_seats</code>)</div>
                     <div class="card-body">
                         <form method="POST" action="?route=admin/show/save">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="mb-2">
                                 <label class="form-label small">Chọn Phim *</label>
                                 <select name="movie_id" class="form-select form-select-sm" required>
@@ -354,6 +366,7 @@
                     </div>
                     <div class="card-body">
                         <form method="POST" action="?route=admin/ticket/checkin">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="mb-2">
                                 <label class="form-label small">Nhập Mã Vé (<code>ticket_code</code>)</label>
                                 <input type="text" name="ticket_code" class="form-control form-control-sm" required placeholder="VD: TK-BK2026...-1">
@@ -395,6 +408,7 @@
                     <div class="card-header bg-white fw-bold">Thêm Combo Bắp Nước (Bảng <code>concessions</code>)</div>
                     <div class="card-body">
                         <form method="POST" action="?route=admin/concession/save" class="row g-2">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="col-md-6">
                                 <input type="text" name="name" class="form-control form-control-sm" placeholder="Tên combo *" required>
                             </div>
@@ -432,6 +446,7 @@
                     <div class="card-header bg-white fw-bold">Thêm Mã Giảm Giá (Bảng <code>coupons</code>)</div>
                     <div class="card-body">
                         <form method="POST" action="?route=admin/coupon/save" class="row g-2">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <div class="col-md-4">
                                 <input type="text" name="code" class="form-control form-control-sm" placeholder="Mã (VD: BETA50)" required>
                             </div>

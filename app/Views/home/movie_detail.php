@@ -27,6 +27,7 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
                     </button>
                 <?php endif; ?>
                 <form method="POST" action="?route=wishlist/toggle" class="mt-2">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                     <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
                     <button type="submit" class="btn btn-outline-danger w-100 btn-sm fw-semibold">
                         <i class="bi bi-heart-fill me-1"></i> Lưu vào Phim Yêu Thích
@@ -81,6 +82,7 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
         </h5>
         <?php if (!empty($_SESSION['user'])): ?>
             <form method="POST" action="?route=movie/review" class="mb-4 pb-3 border-bottom">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
                 <div class="row g-2">
                     <div class="col-md-3">
