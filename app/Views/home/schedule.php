@@ -43,8 +43,9 @@
                 <div class="col-md-3 col-lg-2">
                     <a href="?route=movie/detail&id=<?= (int) $movie['id'] ?>" class="beta-poster-wrap d-block">
                         <span class="beta-age-badge <?= $ageClass ?>"><?= htmlspecialchars($age) ?></span>
-                        <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600') ?>"
-                             alt="<?= htmlspecialchars($movie['title']) ?>">
+                        <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'public/images/posters/dune-part-two.svg') ?>"
+                             alt="<?= htmlspecialchars($movie['title']) ?>"
+                             onerror="this.onerror=null;this.src='public/images/posters/dune-part-two.svg';">
                     </a>
                 </div>
                 <div class="col-md-9 col-lg-10">

@@ -218,29 +218,29 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
             <li class="admin-nav-label">Bảng điều khiển</li>
             <li>
                 <a href="?route=admin&tab=overview" class="admin-nav-link <?= $currentTab === 'overview' ? 'active' : '' ?>">
-                    <i class="bi bi-speedometer2"></i> Tổng quan hệ thống
+                    <i class="bi bi-speedometer2"></i> Tổng quan
                 </a>
             </li>
 
-            <li class="admin-nav-label mt-2">Quản lý 7 Nhánh Nghiệp vụ</li>
+            <li class="admin-nav-label mt-2">Quản lý hệ thống</li>
             <li>
                 <a href="?route=admin&tab=users" class="admin-nav-link <?= $currentTab === 'users' ? 'active' : '' ?>">
-                    <i class="bi bi-people-fill"></i> 1. Rạp, Tài khoản & Admin
+                    <i class="bi bi-people-fill"></i> Rạp, Tài khoản & Admin
                 </a>
             </li>
             <li>
                 <a href="?route=admin&tab=movies" class="admin-nav-link <?= $currentTab === 'movies' ? 'active' : '' ?>">
-                    <i class="bi bi-film"></i> 2. Phim & Thể loại
+                    <i class="bi bi-film"></i> Phim & Thể loại
                 </a>
             </li>
             <li>
                 <a href="?route=admin&tab=rooms" class="admin-nav-link <?= $currentTab === 'rooms' ? 'active' : '' ?>">
-                    <i class="bi bi-grid-3x3-gap-fill"></i> 3. Phòng chiếu & Sơ đồ ghế
+                    <i class="bi bi-grid-3x3-gap-fill"></i> Phòng chiếu & Sơ đồ ghế
                 </a>
             </li>
             <li>
                 <a href="?route=admin&tab=shows" class="admin-nav-link <?= $currentTab === 'shows' ? 'active' : '' ?>">
-                    <i class="bi bi-calendar2-week-fill"></i> 4. Lịch & Suất chiếu
+                    <i class="bi bi-calendar2-week-fill"></i> Lịch & Suất chiếu
                 </a>
             </li>
             <?php endif; ?>
@@ -250,13 +250,13 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
             <?php endif; ?>
             <li>
                 <a href="?route=admin&tab=bookings" class="admin-nav-link <?= $currentTab === 'bookings' ? 'active' : '' ?>">
-                    <i class="bi bi-qr-code-scan"></i> 5-6. Đơn vé & Soát vé QR
+                    <i class="bi bi-qr-code-scan"></i> Đơn vé & Soát vé QR
                 </a>
             </li>
             <?php if (!empty($isAdmin)): ?>
             <li>
                 <a href="?route=admin&tab=concessions" class="admin-nav-link <?= $currentTab === 'concessions' ? 'active' : '' ?>">
-                    <i class="bi bi-cup-straw"></i> 7. Bắp nước & Mã giảm giá
+                    <i class="bi bi-cup-straw"></i> Bắp nước & Mã giảm giá
                 </a>
             </li>
             <?php endif; ?>

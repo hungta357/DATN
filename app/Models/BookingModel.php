@@ -411,14 +411,73 @@ class BookingModel extends BaseModel
     public function getAllBookings(): array
     {
         $sql = "SELECT b.*, u.name AS user_name, u.email AS user_email,
-                       sh.start_time, m.title AS movie_title, r.name AS room_name
+                       sh.start_time, m.title AS movie_title, m.title_vi, r.name AS room_name
                 FROM bookings b
                 INNER JOIN users u ON u.id = b.user_id
                 INNER JOIN shows sh ON sh.id = b.show_id
                 INNER JOIN movies m ON m.id = sh.movie_id
                 INNER JOIN rooms r ON r.id = sh.room_id
                 ORDER BY b.booking_time DESC";
-        return $this->db->query($sql)->fetchAll();
+        $bookings = $this->db->query($sql)->fetchAll();
+        if (empty($bookings)) {
+            return [];
+        }
+
+        $sqlTickets = "SELECT bd.booking_id, s.seat_code, st.name AS seat_type_name,
+                              t.ticket_code, t.status AS ticket_status, t.checked_in_at
+                       FROM booking_details bd
+                       INNER JOIN show_seats ss ON ss.id = bd.show_seat_id
+                       INNER JOIN seats s ON s.id = ss.seat_id
+                       INNER JOIN seat_types st ON st.id = s.seat_type_id
+                       LEFT JOIN tickets t ON t.booking_detail_id = bd.id
+                       ORDER BY s.row_label ASC, s.seat_number ASC";
+        $ticketRows = $this->db->query($sqlTickets)->fetchAll();
+        $ticketsByBooking = [];
+        foreach ($ticketRows as $tr) {
+            $ticketsByBooking[(int) $tr['booking_id']][] = $tr;
+        }
+
+        foreach ($bookings as &$b) {
+            $b['tickets'] = $ticketsByBooking[(int) $b['id']] ?? [];
+        }
+        unset($b);
+
+        return $bookings;
+    }
+
+    public function getOverviewStats(): array
+    {
+        $row = $this->db->query("
+            SELECT
+                COUNT(*) AS total_bookings,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END), 0) AS confirmed_bookings,
+                COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS pending_bookings,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN total_amount ELSE 0 END), 0) AS total_revenue,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN subtotal ELSE 0 END), 0) AS ticket_revenue,
+                COALESCE(SUM(CASE WHEN status = 'confirmed' THEN concession_total ELSE 0 END), 0) AS concession_revenue
+            FROM bookings
+        ")->fetch() ?: [];
+
+        $ticketStats = $this->db->query("
+            SELECT
+                COUNT(t.id) AS total_tickets,
+                COALESCE(SUM(CASE WHEN t.status = 'used' THEN 1 ELSE 0 END), 0) AS checked_in_tickets
+            FROM tickets t
+            INNER JOIN booking_details bd ON bd.id = t.booking_detail_id
+            INNER JOIN bookings b ON b.id = bd.booking_id
+            WHERE b.status = 'confirmed'
+        ")->fetch() ?: [];
+
+        return [
+            'total_bookings' => (int) ($row['total_bookings'] ?? 0),
+            'confirmed_bookings' => (int) ($row['confirmed_bookings'] ?? 0),
+            'pending_bookings' => (int) ($row['pending_bookings'] ?? 0),
+            'total_revenue' => (float) ($row['total_revenue'] ?? 0),
+            'ticket_revenue' => (float) ($row['ticket_revenue'] ?? 0),
+            'concession_revenue' => (float) ($row['concession_revenue'] ?? 0),
+            'total_tickets' => (int) ($ticketStats['total_tickets'] ?? 0),
+            'checked_in_tickets' => (int) ($ticketStats['checked_in_tickets'] ?? 0),
+        ];
     }
 
     /**

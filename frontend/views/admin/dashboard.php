@@ -1,14 +1,4 @@
 <div>
-    <ul class="nav nav-pills mb-4 gap-2">
-        <li class="nav-item"><a class="nav-link <?= $tab === 'overview' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=overview"><i class="bi bi-bar-chart-fill me-1"></i>Thống kê chi tiết & Tổng quan</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'users' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=users">1. Rạp, Users & Mật khẩu Admin</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'movies' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=movies">2. Phim & Thể loại</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'rooms' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=rooms">3. Phòng & Ghế</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'shows' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=shows">4. Suất chiếu (Shows)</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'bookings' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=bookings">5-6. Đơn vé & Soát vé QR</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'concessions' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=concessions">7. Bắp nước & Coupon</a></li>
-    </ul>
-
     <?php if ($tab === 'overview'): ?>
         <?php $sum = $analytics['summary'] ?? []; ?>
         <!-- TRUNG TÂM THỐNG KÊ CHI TIẾT BẰNG REACT 18 (frontend/react/AdminAnalyticsApp.js) + PHP BACKEND API -->

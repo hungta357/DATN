@@ -168,7 +168,7 @@ class BookingController extends BaseController
 
         try {
             // 1. Xác nhận đơn hàng và phát hành vé
-            $bookingModel->confirmBookingAndIssueTickets($bookingId, $paymentMethodId, $selectedCode);
+            $bookingModel->confirmBookingAndIssueTickets($bookingId, $paymentMethodId);
 
             // 2. Lấy lại toàn bộ thông tin mới nhất sau khi đã phát hành vé để đổ vào email
             $updatedBooking = $bookingModel->findBookingFull($bookingId);
@@ -183,10 +183,12 @@ class BookingController extends BaseController
                 $mail->Password   = 'hflx pofr utyh wqld';    
                 $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
                 $mail->Port       = 587;
+                $mail->Timeout    = 4;
                 $mail->CharSet    = 'UTF-8';
 
+                $customerName = $user['name'] ?? $user['full_name'] ?? 'Khách hàng';
                 $mail->setFrom('tuanp201100@gmail.com', 'CineNow Cinema');
-                $mail->addAddress($user['email'], $user['full_name'] ?? 'Khách hàng');
+                $mail->addAddress($user['email'], $customerName);
 
                 $orderCode  = $updatedBooking['booking_code'] ?? '';
                 $movieTitle = $updatedBooking['movie_title'] ?? '';
@@ -195,10 +197,10 @@ class BookingController extends BaseController
                 
                 $ticketCode = $orderCode;
                 $seatsText = '';
-                if (!empty($updatedBooking['tickets'])) {
+                if (!empty($updatedBooking['seats'])) {
                     $seatArr = [];
-                    foreach ($updatedBooking['tickets'] as $t) {
-                        $seatArr[] = $t['seat_number'] . ' (' . ($t['seat_type_name'] ?? 'VIP') . ')';
+                    foreach ($updatedBooking['seats'] as $t) {
+                        $seatArr[] = ($t['seat_code'] ?? $t['seat_number'] ?? '') . ' (' . ($t['seat_type_name'] ?? 'Standard') . ')';
                         $ticketCode = $t['ticket_code'] ?? $ticketCode;
                     }
                     $seatsText = implode(', ', $seatArr);
@@ -208,7 +210,7 @@ class BookingController extends BaseController
                 if (!empty($updatedBooking['concessions'])) {
                     $conArr = [];
                     foreach ($updatedBooking['concessions'] as $c) {
-                        $conArr[] = ($c['name'] ?? 'Combo') . ' x ' . ($c['quantity'] ?? 1);
+                        $conArr[] = ($c['concession_name'] ?? $c['name'] ?? 'Combo') . ' x ' . ($c['quantity'] ?? 1);
                     }
                     $concessionText = implode(', ', $conArr);
                 }
@@ -225,7 +227,7 @@ class BookingController extends BaseController
                             <p style='margin: 5px 0 0 0; font-size: 14px;'>Rạp chiếu phim độc lập</p>
                         </div>
                         <div style='padding: 20px; background-color: #fafafa;'>
-                            <p>Xin chào <strong>" . ($user['full_name'] ?? 'Khách hàng') . "</strong>,</p>
+                            <p>Xin chào <strong>" . htmlspecialchars($customerName, ENT_QUOTES, 'UTF-8') . "</strong>,</p>
                             <p>Cảm ơn bạn đã đặt vé tại CineNow. Giao dịch thanh toán của bạn đã được xác nhận thành công.</p>
                             
                             <table style='width: 100%; border-collapse: collapse; margin: 15px 0; background: #fff; border-radius: 6px;'>

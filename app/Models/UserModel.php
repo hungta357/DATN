@@ -164,13 +164,31 @@ class UserModel extends BaseModel
 
     public function getAllUsersWithRoles(): array
     {
-        $sql = "SELECT u.*, GROUP_CONCAT(r.display_name SEPARATOR ', ') AS role_names
+        $sql = "SELECT u.*,
+                       GROUP_CONCAT(r.display_name SEPARATOR ', ') AS role_names,
+                       GROUP_CONCAT(r.name SEPARATOR ',') AS role_codes
                 FROM users u
                 LEFT JOIN user_roles ur ON ur.user_id = u.id
                 LEFT JOIN roles r ON r.id = ur.role_id
                 GROUP BY u.id
                 ORDER BY u.id DESC";
         return $this->db->query($sql)->fetchAll();
+    }
+
+    public function updateUserRole(int $userId, string $roleName): void
+    {
+        if (!in_array($roleName, ['admin', 'staff', 'customer'], true)) {
+            return;
+        }
+        $stmtRole = $this->db->prepare("SELECT id FROM roles WHERE name = :name LIMIT 1");
+        $stmtRole->execute(['name' => $roleName]);
+        $roleId = $stmtRole->fetchColumn();
+        if (!$roleId) {
+            return;
+        }
+        $this->db->prepare("DELETE FROM user_roles WHERE user_id = :uid")->execute(['uid' => $userId]);
+        $this->db->prepare("INSERT IGNORE INTO user_roles (user_id, role_id, created_at) VALUES (:uid, :rid, NOW())")
+                 ->execute(['uid' => $userId, 'rid' => (int) $roleId]);
     }
 
     public function getCinemaInfo(): array

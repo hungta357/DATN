@@ -30,7 +30,22 @@ class ShowModel extends BaseModel
                 ORDER BY sh.start_time ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['movie_id' => $movieId]);
-        return $stmt->fetchAll();
+        $rows = $stmt->fetchAll();
+
+        if (empty($rows)) {
+            $stmtMovie = $this->db->prepare("SELECT status FROM movies WHERE id = :id LIMIT 1");
+            $stmtMovie->execute(['id' => $movieId]);
+            $movieStatus = $stmtMovie->fetchColumn();
+            if ($movieStatus === 'now_showing') {
+                $created = $this->ensureUpcomingShowsForMovie($movieId, 65000, 3);
+                if ($created > 0) {
+                    $stmt->execute(['movie_id' => $movieId]);
+                    $rows = $stmt->fetchAll();
+                }
+            }
+        }
+
+        return $rows;
     }
 
     /**
@@ -38,6 +53,23 @@ class ShowModel extends BaseModel
      */
     public function getSellingShowsGroupedByMovie(?string $date = null): array
     {
+        // Đảm bảo các phim đang chiếu đều có suất chiếu mở bán trong tương lai
+        $stmtMissing = $this->db->query("
+            SELECT m.id
+            FROM movies m
+            WHERE m.status = 'now_showing'
+              AND NOT EXISTS (
+                  SELECT 1 FROM shows sh
+                  WHERE sh.movie_id = m.id
+                    AND sh.status IN ('scheduled', 'selling')
+                    AND sh.start_time > NOW()
+              )
+        ");
+        $missingMovieIds = $stmtMissing->fetchAll(\PDO::FETCH_COLUMN);
+        foreach ($missingMovieIds as $mid) {
+            $this->ensureUpcomingShowsForMovie((int) $mid, 65000, 3);
+        }
+
         $whereDate = '';
         $params = [];
         if ($date) {
@@ -186,6 +218,250 @@ class ShowModel extends BaseModel
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Cập nhật thông tin suất chiếu (giờ chiếu, phòng, giá vé, trạng thái) và đồng bộ giá ghế trống
+     */
+    public function updateShowWithSeats(int $showId, array $data): void
+    {
+        $existing = $this->find($showId);
+        if (!$existing) {
+            throw new Exception('Suất chiếu không tồn tại.');
+        }
+
+        $movieId = (int) ($data['movie_id'] ?? $existing['movie_id']);
+        $roomId = (int) ($data['room_id'] ?? $existing['room_id']);
+        $basePrice = (float) ($data['base_price'] ?? $existing['base_price']);
+        $status = (string) ($data['status'] ?? $existing['status']);
+        $startTime = $data['start_time'] ?? $existing['start_time'];
+        $endTime = $data['end_time'] ?? $existing['end_time'];
+
+        $startTimestamp = is_string($startTime) ? strtotime($startTime) : false;
+        $endTimestamp = is_string($endTime) ? strtotime($endTime) : false;
+        if ($startTimestamp === false || $endTimestamp === false || $endTimestamp <= $startTimestamp) {
+            throw new Exception('Thời gian suất chiếu không hợp lệ.');
+        }
+        if ($roomId <= 0 || $basePrice <= 0) {
+            throw new Exception('Phòng chiếu và giá vé phải hợp lệ.');
+        }
+
+        $this->db->beginTransaction();
+        try {
+            if ($status !== 'cancelled') {
+                $stmtOverlap = $this->db->prepare("
+                    SELECT id
+                    FROM shows
+                    WHERE room_id = :room_id
+                      AND id <> :show_id
+                      AND status <> 'cancelled'
+                      AND start_time < :end_time
+                      AND end_time > :start_time
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $stmtOverlap->execute([
+                    'room_id' => $roomId,
+                    'show_id' => $showId,
+                    'start_time' => $startTime,
+                    'end_time' => $endTime,
+                ]);
+                if ($stmtOverlap->fetchColumn()) {
+                    throw new Exception('Phòng chiếu đã có suất khác trùng trong khoảng thời gian này.');
+                }
+            }
+
+            $this->update($showId, [
+                'movie_id' => $movieId,
+                'room_id' => $roomId,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'base_price' => $basePrice,
+                'status' => $status,
+            ]);
+
+            // Đảm bảo phòng có sơ đồ ghế và show_seats
+            $roomModel = new RoomModel();
+            if (empty($roomModel->getRoomSeats($roomId))) {
+                $roomModel->generateDefaultSeatsForRoom($roomId);
+            }
+
+            $stmtInsertMissing = $this->db->prepare("
+                INSERT IGNORE INTO show_seats (show_id, seat_id, price, status, created_at, updated_at)
+                SELECT :show_id, s.id, (:base_price + st.surcharge),
+                       CASE WHEN s.status = 'active' THEN 'available' ELSE 'blocked' END,
+                       NOW(), NOW()
+                FROM seats s
+                INNER JOIN seat_types st ON st.id = s.seat_type_id
+                WHERE s.room_id = :room_id
+            ");
+            $stmtInsertMissing->execute([
+                'show_id' => $showId,
+                'base_price' => $basePrice,
+                'room_id' => $roomId,
+            ]);
+
+            // Cập nhật lại giá cho các ghế còn trống
+            $stmtUpdatePrices = $this->db->prepare("
+                UPDATE show_seats ss
+                INNER JOIN seats s ON s.id = ss.seat_id
+                INNER JOIN seat_types st ON st.id = s.seat_type_id
+                SET ss.price = (:base_price + st.surcharge), ss.updated_at = NOW()
+                WHERE ss.show_id = :show_id AND ss.status = 'available'
+            ");
+            $stmtUpdatePrices->execute([
+                'base_price' => $basePrice,
+                'show_id' => $showId,
+            ]);
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Xóa suất chiếu nếu chưa có đơn đặt thành công, hoặc chuyển sang trạng thái đã hủy
+     */
+    public function deleteOrCancelShow(int $showId): string
+    {
+        $stmtCheck = $this->db->prepare("SELECT COUNT(*) FROM bookings WHERE show_id = :id AND status IN ('confirmed', 'pending')");
+        $stmtCheck->execute(['id' => $showId]);
+        $activeBookings = (int) $stmtCheck->fetchColumn();
+
+        if ($activeBookings > 0) {
+            $this->update($showId, ['status' => 'cancelled']);
+            return 'cancelled';
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $this->db->prepare("DELETE FROM bookings WHERE show_id = :id")->execute(['id' => $showId]);
+            $this->db->prepare("DELETE FROM show_seats WHERE show_id = :id")->execute(['id' => $showId]);
+            $this->db->prepare("DELETE FROM shows WHERE id = :id")->execute(['id' => $showId]);
+            $this->db->commit();
+            return 'deleted';
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->update($showId, ['status' => 'cancelled']);
+            return 'cancelled';
+        }
+    }
+
+    /**
+     * Đảm bảo một bộ phim đang chiếu có ít nhất $minShows suất chiếu mở bán trong tương lai
+     */
+    public function ensureUpcomingShowsForMovie(int $movieId, float $basePrice = 65000, int $minShows = 3): int
+    {
+        $stmtMovie = $this->db->prepare("SELECT id, runtime, status FROM movies WHERE id = :id LIMIT 1");
+        $stmtMovie->execute(['id' => $movieId]);
+        $movie = $stmtMovie->fetch();
+        if (!$movie) {
+            return 0;
+        }
+
+        $stmtCount = $this->db->prepare("
+            SELECT COUNT(*) FROM shows
+            WHERE movie_id = :mid
+              AND status IN ('scheduled', 'selling')
+              AND start_time > NOW()
+        ");
+        $stmtCount->execute(['mid' => $movieId]);
+        $existingFutureCount = (int) $stmtCount->fetchColumn();
+
+        if ($existingFutureCount >= $minShows) {
+            return 0;
+        }
+
+        $rooms = $this->db->query("SELECT id FROM rooms WHERE status = 'active' ORDER BY id ASC")->fetchAll();
+        if (empty($rooms)) {
+            $roomModel = new RoomModel();
+            $newRoomId = $roomModel->create([
+                'name' => 'Phòng Chiếu 01 - Standard',
+                'room_type' => 'standard',
+                'capacity' => 0,
+                'status' => 'active',
+                'description' => 'Phòng chiếu tiêu chuẩn',
+            ]);
+            $roomModel->generateDefaultSeatsForRoom($newRoomId);
+            $rooms = [['id' => $newRoomId]];
+        }
+
+        $runtime = max(90, (int) ($movie['runtime'] ?? 120));
+        $slots = ['09:30:00', '13:00:00', '16:30:00', '19:30:00', '22:15:00'];
+        $created = 0;
+        $needed = $minShows - $existingFutureCount;
+
+        $stmtOverlap = $this->db->prepare("
+            SELECT id FROM shows
+            WHERE room_id = :room_id
+              AND status <> 'cancelled'
+              AND start_time < :end_time
+              AND end_time > :start_time
+            LIMIT 1
+        ");
+
+        for ($dayOffset = 0; $dayOffset <= 6 && $created < $needed; $dayOffset++) {
+            $dateStr = date('Y-m-d', strtotime("+{$dayOffset} days"));
+            foreach ($slots as $slot) {
+                if ($created >= $needed) {
+                    break;
+                }
+                $startAt = $dateStr . ' ' . $slot;
+                $startTs = strtotime($startAt);
+                if ($startTs === false || $startTs <= time() + 1800) {
+                    continue;
+                }
+                $endAt = date('Y-m-d H:i:s', $startTs + ($runtime * 60));
+
+                foreach ($rooms as $rIdx => $room) {
+                    $roomId = (int) $room['id'];
+                    $stmtOverlap->execute([
+                        'room_id' => $roomId,
+                        'start_time' => $startAt,
+                        'end_time' => $endAt,
+                    ]);
+                    if ($stmtOverlap->fetchColumn()) {
+                        continue;
+                    }
+
+                    try {
+                        $this->createShowWithSeats([
+                            'movie_id' => $movieId,
+                            'room_id' => $roomId,
+                            'start_time' => $startAt,
+                            'end_time' => $endAt,
+                            'base_price' => $basePrice + ($rIdx % 2 === 1 ? 10000 : 0),
+                            'status' => 'selling',
+                        ]);
+                        $created++;
+                        break;
+                    } catch (\Throwable $e) {
+                        continue;
+                    }
+                }
+            }
+        }
+
+        return $created;
+    }
+
+    /**
+     * Tự động tạo lịch chiếu mở bán cho tất cả phim Đang chiếu (now_showing) chưa có suất chiếu tương lai
+     */
+    public function autoGenerateShowsForNowShowingMovies(int $minShowsPerMovie = 3): int
+    {
+        $movies = $this->db->query("SELECT id FROM movies WHERE status = 'now_showing' ORDER BY id ASC")->fetchAll();
+        $totalCreated = 0;
+        foreach ($movies as $m) {
+            $totalCreated += $this->ensureUpcomingShowsForMovie((int) $m['id'], 65000, $minShowsPerMovie);
+        }
+        return $totalCreated;
     }
 
     /**
