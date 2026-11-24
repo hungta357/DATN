@@ -411,6 +411,154 @@ CREATE TABLE notifications (
     INDEX idx_notifications_user_read (user_id, read_at)
 ) ENGINE=InnoDB;
 
+-- 8. MAINTENANCE REPORTS / EVIDENCE / HISTORY
+CREATE TABLE maintenance_categories (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(120) NOT NULL UNIQUE,
+    description VARCHAR(500) NULL,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE maintenance_reports (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    report_code VARCHAR(40) NULL UNIQUE,
+    category_id BIGINT UNSIGNED NOT NULL,
+    room_id BIGINT UNSIGNED NOT NULL,
+    seat_id BIGINT UNSIGNED NULL,
+    reported_by BIGINT UNSIGNED NOT NULL,
+    assigned_to BIGINT UNSIGNED NULL,
+    severity ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
+    status ENUM('reported','assigned','in_progress','pending_confirmation','completed') NOT NULL DEFAULT 'reported',
+    description TEXT NOT NULL,
+    resolution TEXT NULL,
+    due_at DATETIME NULL,
+    seat_auto_maintenance TINYINT(1) NOT NULL DEFAULT 0,
+    room_auto_maintenance TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    CONSTRAINT fk_maintenance_reports_category FOREIGN KEY (category_id) REFERENCES maintenance_categories(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_maintenance_reports_room FOREIGN KEY (room_id) REFERENCES rooms(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_maintenance_reports_seat FOREIGN KEY (seat_id) REFERENCES seats(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_maintenance_reports_reporter FOREIGN KEY (reported_by) REFERENCES users(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_maintenance_reports_assignee FOREIGN KEY (assigned_to) REFERENCES users(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    INDEX idx_maintenance_reports_status_severity (status, severity),
+    INDEX idx_maintenance_reports_room_created (room_id, created_at),
+    INDEX idx_maintenance_reports_assignee_status (assigned_to, status),
+    INDEX idx_maintenance_reports_seat_status (seat_id, status)
+) ENGINE=InnoDB;
+
+CREATE TABLE maintenance_attachments (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    report_id BIGINT UNSIGNED NOT NULL,
+    uploaded_by BIGINT UNSIGNED NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    size_bytes INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP NULL,
+    CONSTRAINT fk_maintenance_attachments_report FOREIGN KEY (report_id) REFERENCES maintenance_reports(id)
+      ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_maintenance_attachments_user FOREIGN KEY (uploaded_by) REFERENCES users(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    INDEX idx_maintenance_attachments_report (report_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE maintenance_histories (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    report_id BIGINT UNSIGNED NOT NULL,
+    actor_id BIGINT UNSIGNED NOT NULL,
+    action VARCHAR(40) NOT NULL,
+    note TEXT NOT NULL,
+    created_at TIMESTAMP NULL,
+    CONSTRAINT fk_maintenance_histories_report FOREIGN KEY (report_id) REFERENCES maintenance_reports(id)
+      ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_maintenance_histories_actor FOREIGN KEY (actor_id) REFERENCES users(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    INDEX idx_maintenance_histories_report (report_id, created_at)
+) ENGINE=InnoDB;
+
+-- 9. GROUP BOOKINGS / SHARED SEATS / SPLIT WALLET PAYMENTS
+CREATE TABLE group_bookings (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    invite_code VARCHAR(24) NOT NULL UNIQUE,
+    created_by BIGINT UNSIGNED NOT NULL,
+    show_id BIGINT UNSIGNED NOT NULL,
+    member_limit TINYINT UNSIGNED NOT NULL,
+    payment_mode ENUM('shared','split') NOT NULL,
+    status ENUM('open','pending_payment','paid','expired') NOT NULL DEFAULT 'open',
+    booking_id BIGINT UNSIGNED NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    CONSTRAINT fk_group_bookings_creator FOREIGN KEY (created_by) REFERENCES users(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_group_bookings_show FOREIGN KEY (show_id) REFERENCES shows(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_group_bookings_booking FOREIGN KEY (booking_id) REFERENCES bookings(id)
+      ON UPDATE CASCADE ON DELETE SET NULL,
+    INDEX idx_group_bookings_status_expiry (status, expires_at),
+    INDEX idx_group_bookings_show (show_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE group_members (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    group_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    is_owner TINYINT(1) NOT NULL DEFAULT 0,
+    status ENUM('joined','paid') NOT NULL DEFAULT 'joined',
+    joined_at DATETIME NOT NULL,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    UNIQUE KEY uq_group_member (group_id, user_id),
+    CONSTRAINT fk_group_members_group FOREIGN KEY (group_id) REFERENCES group_bookings(id)
+      ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_group_members_user FOREIGN KEY (user_id) REFERENCES users(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    INDEX idx_group_members_user (user_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE group_seat_assignments (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    group_id BIGINT UNSIGNED NOT NULL,
+    member_id BIGINT UNSIGNED NOT NULL,
+    show_seat_id BIGINT UNSIGNED NOT NULL,
+    created_at TIMESTAMP NULL,
+    UNIQUE KEY uq_group_assigned_seat (show_seat_id),
+    UNIQUE KEY uq_group_member_seat (member_id),
+    CONSTRAINT fk_group_seat_assignments_group FOREIGN KEY (group_id) REFERENCES group_bookings(id)
+      ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_group_seat_assignments_member FOREIGN KEY (member_id) REFERENCES group_members(id)
+      ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_group_seat_assignments_show_seat FOREIGN KEY (show_seat_id) REFERENCES show_seats(id)
+      ON UPDATE CASCADE ON DELETE RESTRICT,
+    INDEX idx_group_seat_assignments_group (group_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE group_contributions (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    group_id BIGINT UNSIGNED NOT NULL,
+    member_id BIGINT UNSIGNED NOT NULL,
+    wallet_transaction_id BIGINT UNSIGNED NULL UNIQUE,
+    amount DECIMAL(12,2) NOT NULL,
+    status ENUM('paid','refunded') NOT NULL DEFAULT 'paid',
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    UNIQUE KEY uq_group_contribution_member (group_id, member_id),
+    CONSTRAINT fk_group_contributions_group FOREIGN KEY (group_id) REFERENCES group_bookings(id)
+      ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_group_contributions_member FOREIGN KEY (member_id) REFERENCES group_members(id)
+      ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_group_contributions_wallet_transaction FOREIGN KEY (wallet_transaction_id) REFERENCES wallet_transactions(id)
+      ON UPDATE CASCADE ON DELETE SET NULL,
+    INDEX idx_group_contributions_status (group_id, status)
+) ENGINE=InnoDB;
+
 -- Du lieu khoi tao co ban
 INSERT IGNORE INTO roles (name, display_name, description) VALUES
 ('admin', 'Quan tri vien', 'Quan ly toan bo he thong'),
@@ -430,6 +578,16 @@ INSERT IGNORE INTO payment_methods (name, code, description) VALUES
 
 INSERT IGNORE INTO cinema_info (id, name, address, phone, email)
 VALUES (1, 'Cinema', 'Cap nhat dia chi rap cua ban', NULL, NULL);
+
+INSERT IGNORE INTO maintenance_categories (name, description, created_at, updated_at) VALUES
+('Ghế ngồi', 'Ghế hỏng, lỏng hoặc cần bảo trì', NOW(), NOW()),
+('Máy chiếu', 'Máy chiếu hoặc màn chiếu gặp sự cố', NOW(), NOW()),
+('Âm thanh', 'Loa, âm thanh hoặc thiết bị liên quan', NOW(), NOW()),
+('Điều hòa', 'Hệ thống điều hòa, thông gió', NOW(), NOW()),
+('Ánh sáng', 'Đèn trong phòng hoặc hệ thống chiếu sáng', NOW(), NOW()),
+('Thiết bị soát vé', 'Máy quét vé hoặc thiết bị kiểm tra vé', NOW(), NOW()),
+('Vệ sinh', 'Phòng chiếu cần vệ sinh hoặc bảo dưỡng', NOW(), NOW()),
+('Khác', 'Sự cố vận hành khác', NOW(), NOW());
 
 -- LUU Y NGHIEP VU:
 -- 1. Khi tao show, tao cac dong show_seats tu danh sach seats cua room.

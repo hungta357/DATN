@@ -5,9 +5,14 @@ namespace App\Controllers;
 use App\Core\BaseController;
 use App\Models\BookingModel;
 use App\Models\EngagementModel;
+use App\Models\GroupBookingModel;
+use App\Models\IncidentModel;
 use App\Models\MovieModel;
+use App\Models\MaintenanceModel;
 use App\Models\RoomModel;
 use App\Models\ShowModel;
+use App\Models\StaffShiftModel;
+use App\Models\TicketSecurityModel;
 use App\Models\UserModel;
 
 class AdminController extends BaseController
@@ -27,9 +32,20 @@ class AdminController extends BaseController
 
         $tab = $_GET['tab'] ?? ($isStaff ? 'bookings' : 'overview');
 
-        if ($isStaff && $tab !== 'bookings') {
+        // Staff chỉ được vào các phân hệ nghiệp vụ được cấp quyền.
+        if ($isStaff && !in_array($tab, ['bookings', 'maintenance', 'incidents', 'shifts'], true)) {
             $this->redirect('?route=admin&tab=bookings');
         }
+
+        $maintenanceModel = new MaintenanceModel();
+        $groupBookingModel = new GroupBookingModel();
+        $isMaintenanceTab = $tab === 'maintenance';
+        $isIncidentTab = $tab === 'incidents';
+        $isShiftTab = $tab === 'shifts';
+        $isBookingTab = $tab === 'bookings';
+        $incidentModel = new IncidentModel();
+        $shiftModel = new StaffShiftModel();
+        $ticketSecurityModel = new TicketSecurityModel();
 
         // Đảm bảo các bộ phim đang chiếu đều có suất chiếu mở bán để khách có thể đặt vé ngay
         if ($isAdmin) {
@@ -69,6 +85,32 @@ class AdminController extends BaseController
             'bookings' => $bookingModel->getAllBookings(),
             'concessions' => $isAdmin ? $engagementModel->getAllConcessions() : [],
             'coupons' => $isAdmin ? $engagementModel->getAllCoupons() : [],
+            'maintenanceReports' => $isMaintenanceTab ? $maintenanceModel->getReports(
+                (int) $currentUser['id'],
+                $isAdmin,
+                [
+                    'room_id' => isset($_GET['maintenance_room']) && is_scalar($_GET['maintenance_room']) ? (string) $_GET['maintenance_room'] : '',
+                    'severity' => isset($_GET['maintenance_severity']) && is_string($_GET['maintenance_severity']) ? $_GET['maintenance_severity'] : '',
+                    'status' => isset($_GET['maintenance_status']) && is_string($_GET['maintenance_status']) ? $_GET['maintenance_status'] : '',
+                ]
+            ) : [],
+            'maintenanceCategories' => $isMaintenanceTab ? $maintenanceModel->getCategories() : [],
+            'maintenanceRooms' => $isMaintenanceTab ? $maintenanceModel->getRooms() : [],
+            'maintenanceSeats' => $isMaintenanceTab ? $maintenanceModel->getSeats() : [],
+            'maintenanceStaff' => $isMaintenanceTab && $isAdmin ? $maintenanceModel->getAssignableStaff() : [],
+            'maintenanceStats' => $isMaintenanceTab && $isAdmin ? $maintenanceModel->getMonthlyStats() : [],
+            'groupBookings' => $tab === 'groups' && $isAdmin ? $groupBookingModel->getAllGroupsForAdmin() : [],
+            // Nhân viên chỉ nhận các khiếu nại được phân công; Admin xem toàn bộ.
+            'incidentReports' => $isIncidentTab ? $incidentModel->getReports(
+                (int) $currentUser['id'],
+                $isAdmin,
+                $isStaff
+            ) : [],
+            'incidentStaff' => $isIncidentTab && $isAdmin ? $incidentModel->getAssignableStaff() : [],
+            'shifts' => $isShiftTab ? $shiftModel->getShifts((int) $currentUser['id'], $isAdmin) : [],
+            'shiftStaff' => $isShiftTab && $isAdmin ? $shiftModel->getAssignableStaff() : [],
+            'shiftRooms' => $isShiftTab && $isAdmin ? $shiftModel->getActiveRooms() : [],
+            'scanAlerts' => $isBookingTab ? $ticketSecurityModel->getAnomalyLogs() : [],
         ], 'layouts/admin');
     }
 
@@ -485,23 +527,7 @@ class AdminController extends BaseController
 
     public function checkInTicket(): void
     {
-        $this->requireRole(['admin', 'staff']);
-        $ticketCodeInput = $_POST['ticket_code'] ?? '';
-        $ticketCode = is_string($ticketCodeInput) ? trim($ticketCodeInput) : '';
-
-        try {
-            if ($ticketCode === '') {
-                throw new \InvalidArgumentException('Vui lòng nhập mã vé cần soát.');
-            }
-
-            $bookingModel = new BookingModel();
-            $ticket = $bookingModel->checkInTicketByCode($ticketCode);
-            $this->setFlash('success', "Soát vé thành công! Mã vé: {$ticket['ticket_code']} | Phim: {$ticket['movie_title']} | Phòng: {$ticket['room_name']} | Ghế: {$ticket['seat_code']}");
-        } catch (\Throwable $e) {
-            $this->setFlash('danger', $e->getMessage());
-        }
-
-        $this->redirect('?route=admin&tab=bookings');
+        (new TicketSecurityController())->checkIn();
     }
 
     public function saveConcession(): void

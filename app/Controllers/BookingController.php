@@ -5,10 +5,10 @@ namespace App\Controllers;
 use App\Core\BaseController;
 use App\Models\BookingModel;
 use App\Models\EngagementModel;
+use App\Models\GroupBookingModel;
 use App\Models\PaymentWalletModel;
 use App\Models\ShowModel;
 use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
 // Nếu dùng Composer thì bật dòng này:
 require_once __DIR__ . '/../../vendor/autoload.php';
@@ -104,9 +104,18 @@ class BookingController extends BaseController
         $paymentWalletModel = new PaymentWalletModel();
 
         $booking = $bookingModel->findBookingFull($bookingId);
-        if (!$booking || (int) $booking['user_id'] !== (int) $user['id']) {
+        $groupModel = new GroupBookingModel();
+        $group = $booking ? $groupModel->getGroupForBooking($bookingId) : null;
+        $isGroupMember = $group && $groupModel->isGroupMember((int) $group['id'], (int) $user['id']);
+        if (!$booking || ((int) $booking['user_id'] !== (int) $user['id'] && !$isGroupMember)) {
             $this->setFlash('danger', 'Không tìm thấy đơn đặt vé.');
             $this->redirect('?route=booking/my');
+        }
+        if ($group && $group['payment_mode'] === 'split' && $group['status'] === 'pending_payment') {
+            $this->redirect('?route=booking/group&code=' . urlencode($group['invite_code']));
+        }
+        if ($group && $group['status'] !== 'paid' && (int) $booking['user_id'] !== (int) $user['id']) {
+            $this->redirect('?route=booking/group&code=' . urlencode($group['invite_code']));
         }
 
         if ($booking['status'] === 'pending') {
@@ -141,7 +150,6 @@ class BookingController extends BaseController
             ? filter_var($bookingIdInput, FILTER_VALIDATE_INT)
             : false;
         $bookingId = $bookingId === false ? 0 : (int) $bookingId;
-        
         $paymentMethodInput = $_POST['payment_method_id'] ?? null;
         $paymentMethodId = is_string($paymentMethodInput) || is_int($paymentMethodInput)
             ? filter_var($paymentMethodInput, FILTER_VALIDATE_INT)
@@ -156,6 +164,10 @@ class BookingController extends BaseController
             $this->setFlash('danger', 'Đơn hàng không hợp lệ.');
             $this->redirect('?route=booking/my');
         }
+        $group = (new GroupBookingModel())->getGroupForBooking($bookingId);
+        if ($group && $group['payment_mode'] === 'split' && $group['status'] === 'pending_payment') {
+            $this->redirect('?route=booking/group&code=' . urlencode($group['invite_code']));
+        }
 
         $methods = $paymentWalletModel->getActivePaymentMethods();
         $selectedCode = 'CASH';
@@ -169,92 +181,74 @@ class BookingController extends BaseController
         try {
             // 1. Xác nhận đơn hàng và phát hành vé
             $bookingModel->confirmBookingAndIssueTickets($bookingId, $paymentMethodId);
+            (new GroupBookingModel())->markSharedGroupPaid($bookingId);
 
             // 2. Lấy lại toàn bộ thông tin mới nhất sau khi đã phát hành vé để đổ vào email
             $updatedBooking = $bookingModel->findBookingFull($bookingId);
 
-            // 3. Tích hợp gửi mail tự động qua PHPMailer
-            $mail = new PHPMailer(true);
-            try {
-                $mail->isSMTP();
-                $mail->Host       = 'smtp.gmail.com';
-                $mail->SMTPAuth   = true;
-                $mail->Username   = 'tuanp201100@gmail.com'; 
-                $mail->Password   = 'hflx pofr utyh wqld';    
-                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                $mail->Port       = 587;
-                $mail->Timeout    = 4;
-                $mail->CharSet    = 'UTF-8';
+            // Chỉ gửi email khi SMTP được cấu hình trong môi trường; không lưu thông tin
+            // đăng nhập email trong source và không làm thất bại giao dịch nếu gửi lỗi.
+            $mailSent = false;
+            $smtpHost = getenv('MAIL_SMTP_HOST') ?: '';
+            $smtpUsername = getenv('MAIL_SMTP_USERNAME') ?: '';
+            $smtpPassword = getenv('MAIL_SMTP_PASSWORD') ?: '';
+            $fromEmail = getenv('MAIL_FROM_EMAIL') ?: $smtpUsername;
+            if ($smtpHost !== '' && $smtpUsername !== '' && $smtpPassword !== '' && filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+                try {
+                    $mail = new PHPMailer(true);
+                    $mail->isSMTP();
+                    $mail->Host = $smtpHost;
+                    $mail->SMTPAuth = true;
+                    $mail->Username = $smtpUsername;
+                    $mail->Password = $smtpPassword;
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Port = (int) (getenv('MAIL_SMTP_PORT') ?: 587);
+                    $mail->Timeout = 4;
+                    $mail->CharSet = 'UTF-8';
 
-                $customerName = $user['name'] ?? $user['full_name'] ?? 'Khách hàng';
-                $mail->setFrom('tuanp201100@gmail.com', 'CineNow Cinema');
-                $mail->addAddress($user['email'], $customerName);
+                    $customerName = $user['name'] ?? $user['full_name'] ?? 'Khách hàng';
+                    $mail->setFrom($fromEmail, getenv('MAIL_FROM_NAME') ?: 'CineNow Cinema');
+                    $mail->addAddress($user['email'], $customerName);
 
-                $orderCode  = $updatedBooking['booking_code'] ?? '';
-                $movieTitle = $updatedBooking['movie_title'] ?? '';
-                $roomName   = $updatedBooking['room_name'] ?? '';
-                $showTime   = $updatedBooking['start_time'] ?? '';
-                
-                $ticketCode = $orderCode;
-                $seatsText = '';
-                if (!empty($updatedBooking['seats'])) {
-                    $seatArr = [];
-                    foreach ($updatedBooking['seats'] as $t) {
-                        $seatArr[] = ($t['seat_code'] ?? $t['seat_number'] ?? '') . ' (' . ($t['seat_type_name'] ?? 'Standard') . ')';
-                        $ticketCode = $t['ticket_code'] ?? $ticketCode;
+                    $orderCode = (string) ($updatedBooking['booking_code'] ?? '');
+                    $movieTitle = (string) ($updatedBooking['movie_title'] ?? '');
+                    $roomName = (string) ($updatedBooking['room_name'] ?? '');
+                    $showTime = (string) ($updatedBooking['start_time'] ?? '');
+                    $ticketCode = $orderCode;
+                    $seatNames = [];
+                    foreach ($updatedBooking['seats'] ?? [] as $ticket) {
+                        $seatNames[] = (string) ($ticket['seat_code'] ?? $ticket['seat_number'] ?? '');
+                        $ticketCode = (string) ($ticket['ticket_code'] ?? $ticketCode);
                     }
-                    $seatsText = implode(', ', $seatArr);
+                    $seatsText = $seatNames ? implode(', ', $seatNames) : 'Không có thông tin';
+                    $totalAmount = number_format((float) ($updatedBooking['total_amount'] ?? 0), 0, ',', '.') . ' đ';
+                    $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+                    $mail->isHTML(true);
+                    $mail->Subject = '[CineNow] Xác nhận đặt vé thành công - Đơn hàng #' . $orderCode;
+                    $mail->Body = '<h2>Vé điện tử CineNow</h2>'
+                        . '<p>Xin chào ' . $escape((string) $customerName) . ', thanh toán của bạn đã được xác nhận.</p>'
+                        . '<p><strong>Mã đơn:</strong> ' . $escape($orderCode) . '<br>'
+                        . '<strong>Phim:</strong> ' . $escape($movieTitle) . '<br>'
+                        . '<strong>Phòng:</strong> ' . $escape($roomName) . '<br>'
+                        . '<strong>Suất chiếu:</strong> ' . $escape($showTime) . '<br>'
+                        . '<strong>Ghế:</strong> ' . $escape($seatsText) . '<br>'
+                        . '<strong>Tổng thanh toán:</strong> ' . $escape($totalAmount) . '</p>'
+                        . '<p>Mã vé: <strong>' . $escape($ticketCode) . '</strong></p>';
+                    $mail->AltBody = "Mã đơn: {$orderCode}\nPhim: {$movieTitle}\nPhòng: {$roomName}\nSuất chiếu: {$showTime}\nGhế: {$seatsText}\nTổng thanh toán: {$totalAmount}\nMã vé: {$ticketCode}";
+                    $mail->send();
+                    $mailSent = true;
+                } catch (\Throwable $mailError) {
+                    error_log('[CineNow mail] ' . $mailError->getMessage());
                 }
-
-                $concessionText = 'Không có';
-                if (!empty($updatedBooking['concessions'])) {
-                    $conArr = [];
-                    foreach ($updatedBooking['concessions'] as $c) {
-                        $conArr[] = ($c['concession_name'] ?? $c['name'] ?? 'Combo') . ' x ' . ($c['quantity'] ?? 1);
-                    }
-                    $concessionText = implode(', ', $conArr);
-                }
-
-                $totalAmount = number_format($updatedBooking['total_amount'] ?? 0, 0, ',', '.') . ' đ';
-                $qrCodeUrl   = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" . urlencode($ticketCode);
-
-                $mail->isHTML(true);
-                $mail->Subject = '[CineNow] Xác nhận đặt vé thành công - Đơn hàng #' . $orderCode;
-                $mail->Body    = "
-                    <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;'>
-                        <div style='background-color: #0d6efd; color: white; padding: 20px; text-align: center;'>
-                            <h2 style='margin: 0; font-size: 22px;'>VÉ ĐIỆN TỬ CINENOW</h2>
-                            <p style='margin: 5px 0 0 0; font-size: 14px;'>Rạp chiếu phim độc lập</p>
-                        </div>
-                        <div style='padding: 20px; background-color: #fafafa;'>
-                            <p>Xin chào <strong>" . htmlspecialchars($customerName, ENT_QUOTES, 'UTF-8') . "</strong>,</p>
-                            <p>Cảm ơn bạn đã đặt vé tại CineNow. Giao dịch thanh toán của bạn đã được xác nhận thành công.</p>
-                            
-                            <table style='width: 100%; border-collapse: collapse; margin: 15px 0; background: #fff; border-radius: 6px;'>
-                                <tr><td style='padding: 10px; border-bottom: 1px solid #eee;'><strong>Mã đơn hàng:</strong></td><td style='padding: 10px; border-bottom: 1px solid #eee; color: #0d6efd;'>#{$orderCode}</td></tr>
-                                <tr><td style='padding: 10px; border-bottom: 1px solid #eee;'><strong>Phim:</strong></td><td style='padding: 10px; border-bottom: 1px solid #eee;'><strong>{$movieTitle}</strong></td></tr>
-                                <tr><td style='padding: 10px; border-bottom: 1px solid #eee;'><strong>Phòng chiếu:</strong></td><td style='padding: 10px; border-bottom: 1px solid #eee;'>{$roomName}</td></tr>
-                                <tr><td style='padding: 10px; border-bottom: 1px solid #eee;'><strong>Suất chiếu:</strong></td><td style='padding: 10px; border-bottom: 1px solid #eee;'>{$showTime}</td></tr>
-                                <tr><td style='padding: 10px; border-bottom: 1px solid #eee;'><strong>Ghế đã chọn:</strong></td><td style='padding: 10px; border-bottom: 1px solid #eee; color: #d63384; font-weight: bold;'>{$seatsText}</td></tr>
-                                <tr><td style='padding: 10px; border-bottom: 1px solid #eee;'><strong>Combo bắp nước:</strong></td><td style='padding: 10px; border-bottom: 1px solid #eee;'>{$concessionText}</td></tr>
-                                <tr><td style='padding: 10px;'><strong>Tổng thanh toán:</strong></td><td style='padding: 10px; color: #dc3545; font-weight: bold; font-size: 16px;'>{$totalAmount}</td></tr>
-                            </table>
-
-                            <div style='text-align: center; margin-top: 25px; background: #fff; padding: 15px; border-radius: 6px; border: 1px dashed #ccc;'>
-                                <p style='margin-bottom: 10px; font-weight: bold; color: #333;'>Mã QR Check-in tại quầy:</p>
-                                <img src='{$qrCodeUrl}' alt='QR Code Vé' style='border: 4px solid #fff; box-shadow: 0 0 5px rgba(0,0,0,0.1);' />
-                                <p style='color: #666; font-size: 12px; margin-top: 8px;'>Mã vé: <strong>{$ticketCode}</strong></p>
-                            </div>
-                            <p style='font-size: 13px; color: #777; text-align: center; margin-top: 20px;'>Vui lòng đến rạp trước giờ chiếu 15 phút để check-in. Chúc bạn xem phim vui vẻ!</p>
-                        </div>
-                    </div>
-                ";
-                $mail->send();
-            } catch (\Exception $mailEx) {
-                error_log("Email sending failed: " . $mailEx->getMessage());
             }
 
-            $this->setFlash('success', 'Thanh toán thành công! Vé điện tử, mã QR đã được phát hành và gửi về email của bạn.');
+            $this->setFlash(
+                'success',
+                $mailSent
+                    ? 'Thanh toán thành công! Vé điện tử và mã QR đã được phát hành, email xác nhận đã được gửi.'
+                    : 'Thanh toán thành công! Vé điện tử và mã QR đã được phát hành.'
+            );
             $this->redirect('?route=booking/checkout&id=' . $bookingId);
         } catch (\Throwable $e) {
             $this->setFlash('danger', 'Lỗi thanh toán: ' . $e->getMessage());

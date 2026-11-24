@@ -50,6 +50,11 @@ use App\Controllers\AdminController;
 use App\Controllers\AuthController;
 use App\Controllers\BookingController;
 use App\Controllers\HomeController;
+use App\Controllers\GroupBookingController;
+use App\Controllers\MaintenanceController;
+use App\Controllers\IncidentController;
+use App\Controllers\StaffShiftController;
+use App\Controllers\TicketSecurityController;
 use App\Controllers\WalletController;
 
 $route = $_GET['route'] ?? 'home';
@@ -114,6 +119,30 @@ switch ($route) {
     case 'booking/my':
         (new BookingController())->myBookings();
         break;
+    case 'booking/group':
+        (new GroupBookingController())->index();
+        break;
+    case 'booking/group/create':
+        (new GroupBookingController())->create();
+        break;
+    case 'booking/group/join':
+        (new GroupBookingController())->join();
+        break;
+    case 'booking/group/seat':
+        (new GroupBookingController())->assignSeat();
+        break;
+    case 'booking/group/finalize':
+        (new GroupBookingController())->finalize();
+        break;
+    case 'booking/group/pay-share':
+        (new GroupBookingController())->payShare();
+        break;
+    case 'incidents':
+        (new IncidentController())->index();
+        break;
+    case 'incidents/create':
+        (new IncidentController())->create();
+        break;
 
     // --- NHÁNH 6: WALLET (VÍ NỘI BỘ) ---
     case 'wallet':
@@ -176,7 +205,22 @@ switch ($route) {
         (new AdminController())->autoGenerateShows();
         break;
     case 'admin/ticket/checkin':
-        (new AdminController())->checkInTicket();
+        (new TicketSecurityController())->checkIn();
+        break;
+    case 'admin/incidents/assign':
+        (new IncidentController())->assign();
+        break;
+    case 'admin/incidents/update':
+        (new IncidentController())->update();
+        break;
+    case 'admin/shifts':
+        (new StaffShiftController())->index();
+        break;
+    case 'admin/shifts/create':
+        (new StaffShiftController())->create();
+        break;
+    case 'admin/shifts/status':
+        (new StaffShiftController())->updateStatus();
         break;
     case 'admin/concession/save':
         (new AdminController())->saveConcession();
@@ -186,6 +230,18 @@ switch ($route) {
         break;
     case 'admin/coupon/save':
         (new AdminController())->saveCoupon();
+        break;
+    case 'admin/maintenance/create':
+        (new MaintenanceController())->create();
+        break;
+    case 'admin/maintenance/assign':
+        (new MaintenanceController())->assign();
+        break;
+    case 'admin/maintenance/progress':
+        (new MaintenanceController())->updateProgress();
+        break;
+    case 'admin/maintenance/confirm':
+        (new MaintenanceController())->confirm();
         break;
     case 'admin/coupon/delete':
         (new AdminController())->deleteCoupon();
