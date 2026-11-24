@@ -8,6 +8,10 @@ use App\Models\EngagementModel;
 use App\Models\GroupBookingModel;
 use App\Models\PaymentWalletModel;
 use App\Models\ShowModel;
+use PHPMailer\PHPMailer\PHPMailer;
+
+// Nếu dùng Composer thì bật dòng này:
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 class BookingController extends BaseController
 {
@@ -153,6 +157,7 @@ class BookingController extends BaseController
         $paymentMethodId = $paymentMethodId === false ? 0 : (int) $paymentMethodId;
 
         $bookingModel = new BookingModel();
+        $paymentWalletModel = new PaymentWalletModel();
 
         $booking = $bookingModel->findBookingFull($bookingId);
         if (!$booking || (int) $booking['user_id'] !== (int) $user['id']) {
@@ -164,10 +169,86 @@ class BookingController extends BaseController
             $this->redirect('?route=booking/group&code=' . urlencode($group['invite_code']));
         }
 
+        $methods = $paymentWalletModel->getActivePaymentMethods();
+        $selectedCode = 'CASH';
+        foreach ($methods as $m) {
+            if ((int) $m['id'] === $paymentMethodId) {
+                $selectedCode = $m['code'];
+                break;
+            }
+        }
+
         try {
+            // 1. Xác nhận đơn hàng và phát hành vé
             $bookingModel->confirmBookingAndIssueTickets($bookingId, $paymentMethodId);
             (new GroupBookingModel())->markSharedGroupPaid($bookingId);
-            $this->setFlash('success', 'Thanh toán thành công! Vé điện tử và mã QR đã được phát hành.');
+
+            // 2. Lấy lại toàn bộ thông tin mới nhất sau khi đã phát hành vé để đổ vào email
+            $updatedBooking = $bookingModel->findBookingFull($bookingId);
+
+            // Chỉ gửi email khi SMTP được cấu hình trong môi trường; không lưu thông tin
+            // đăng nhập email trong source và không làm thất bại giao dịch nếu gửi lỗi.
+            $mailSent = false;
+            $smtpHost = getenv('MAIL_SMTP_HOST') ?: '';
+            $smtpUsername = getenv('MAIL_SMTP_USERNAME') ?: '';
+            $smtpPassword = getenv('MAIL_SMTP_PASSWORD') ?: '';
+            $fromEmail = getenv('MAIL_FROM_EMAIL') ?: $smtpUsername;
+            if ($smtpHost !== '' && $smtpUsername !== '' && $smtpPassword !== '' && filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+                try {
+                    $mail = new PHPMailer(true);
+                    $mail->isSMTP();
+                    $mail->Host = $smtpHost;
+                    $mail->SMTPAuth = true;
+                    $mail->Username = $smtpUsername;
+                    $mail->Password = $smtpPassword;
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Port = (int) (getenv('MAIL_SMTP_PORT') ?: 587);
+                    $mail->Timeout = 4;
+                    $mail->CharSet = 'UTF-8';
+
+                    $customerName = $user['name'] ?? $user['full_name'] ?? 'Khách hàng';
+                    $mail->setFrom($fromEmail, getenv('MAIL_FROM_NAME') ?: 'CineNow Cinema');
+                    $mail->addAddress($user['email'], $customerName);
+
+                    $orderCode = (string) ($updatedBooking['booking_code'] ?? '');
+                    $movieTitle = (string) ($updatedBooking['movie_title'] ?? '');
+                    $roomName = (string) ($updatedBooking['room_name'] ?? '');
+                    $showTime = (string) ($updatedBooking['start_time'] ?? '');
+                    $ticketCode = $orderCode;
+                    $seatNames = [];
+                    foreach ($updatedBooking['seats'] ?? [] as $ticket) {
+                        $seatNames[] = (string) ($ticket['seat_code'] ?? $ticket['seat_number'] ?? '');
+                        $ticketCode = (string) ($ticket['ticket_code'] ?? $ticketCode);
+                    }
+                    $seatsText = $seatNames ? implode(', ', $seatNames) : 'Không có thông tin';
+                    $totalAmount = number_format((float) ($updatedBooking['total_amount'] ?? 0), 0, ',', '.') . ' đ';
+                    $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+                    $mail->isHTML(true);
+                    $mail->Subject = '[CineNow] Xác nhận đặt vé thành công - Đơn hàng #' . $orderCode;
+                    $mail->Body = '<h2>Vé điện tử CineNow</h2>'
+                        . '<p>Xin chào ' . $escape((string) $customerName) . ', thanh toán của bạn đã được xác nhận.</p>'
+                        . '<p><strong>Mã đơn:</strong> ' . $escape($orderCode) . '<br>'
+                        . '<strong>Phim:</strong> ' . $escape($movieTitle) . '<br>'
+                        . '<strong>Phòng:</strong> ' . $escape($roomName) . '<br>'
+                        . '<strong>Suất chiếu:</strong> ' . $escape($showTime) . '<br>'
+                        . '<strong>Ghế:</strong> ' . $escape($seatsText) . '<br>'
+                        . '<strong>Tổng thanh toán:</strong> ' . $escape($totalAmount) . '</p>'
+                        . '<p>Mã vé: <strong>' . $escape($ticketCode) . '</strong></p>';
+                    $mail->AltBody = "Mã đơn: {$orderCode}\nPhim: {$movieTitle}\nPhòng: {$roomName}\nSuất chiếu: {$showTime}\nGhế: {$seatsText}\nTổng thanh toán: {$totalAmount}\nMã vé: {$ticketCode}";
+                    $mail->send();
+                    $mailSent = true;
+                } catch (\Throwable $mailError) {
+                    error_log('[CineNow mail] ' . $mailError->getMessage());
+                }
+            }
+
+            $this->setFlash(
+                'success',
+                $mailSent
+                    ? 'Thanh toán thành công! Vé điện tử và mã QR đã được phát hành, email xác nhận đã được gửi.'
+                    : 'Thanh toán thành công! Vé điện tử và mã QR đã được phát hành.'
+            );
             $this->redirect('?route=booking/checkout&id=' . $bookingId);
         } catch (\Throwable $e) {
             $this->setFlash('danger', 'Lỗi thanh toán: ' . $e->getMessage());
@@ -187,4 +268,3 @@ class BookingController extends BaseController
         ]);
     }
 }
-

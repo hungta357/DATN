@@ -177,14 +177,32 @@ switch ($route) {
     case 'admin/movie/status':
         (new AdminController())->updateMovieStatus();
         break;
+    case 'admin/movie/delete':
+        (new AdminController())->deleteMovie();
+        break;
     case 'admin/room/save':
         (new AdminController())->saveRoom();
+        break;
+    case 'admin/room/update':
+        (new AdminController())->updateRoom();
+        break;
+    case 'admin/room/delete':
+        (new AdminController())->deleteRoom();
         break;
     case 'admin/room/generate-seats':
         (new AdminController())->generateSeats();
         break;
     case 'admin/show/save':
         (new AdminController())->saveShow();
+        break;
+    case 'admin/show/update':
+        (new AdminController())->updateShow();
+        break;
+    case 'admin/show/delete':
+        (new AdminController())->deleteShow();
+        break;
+    case 'admin/show/auto-generate':
+        (new AdminController())->autoGenerateShows();
         break;
     case 'admin/ticket/checkin':
         (new TicketSecurityController())->checkIn();
@@ -207,6 +225,9 @@ switch ($route) {
     case 'admin/concession/save':
         (new AdminController())->saveConcession();
         break;
+    case 'admin/concession/delete':
+        (new AdminController())->deleteConcession();
+        break;
     case 'admin/coupon/save':
         (new AdminController())->saveCoupon();
         break;
@@ -221,6 +242,9 @@ switch ($route) {
         break;
     case 'admin/maintenance/confirm':
         (new MaintenanceController())->confirm();
+        break;
+    case 'admin/coupon/delete':
+        (new AdminController())->deleteCoupon();
         break;
 
     default:

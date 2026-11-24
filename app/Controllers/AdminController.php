@@ -15,9 +15,6 @@ use App\Models\StaffShiftModel;
 use App\Models\TicketSecurityModel;
 use App\Models\UserModel;
 
-/**
- * QUẢN TRỊ HỆ THỐNG TỔNG HỢP TẤT CẢ 7 NHÁNH TRONG DATABASE
- */
 class AdminController extends BaseController
 {
     public function dashboard(): void
@@ -35,7 +32,7 @@ class AdminController extends BaseController
 
         $tab = $_GET['tab'] ?? ($isStaff ? 'bookings' : 'overview');
 
-        // Staff chỉ được vào quầy soát vé, lịch ca, khiếu nại được giao và sự cố/bảo trì.
+        // Staff chỉ được vào các phân hệ nghiệp vụ được cấp quyền.
         if ($isStaff && !in_array($tab, ['bookings', 'maintenance', 'incidents', 'shifts'], true)) {
             $this->redirect('?route=admin&tab=bookings');
         }
@@ -46,24 +43,45 @@ class AdminController extends BaseController
         $isIncidentTab = $tab === 'incidents';
         $isShiftTab = $tab === 'shifts';
         $isBookingTab = $tab === 'bookings';
-        // Chỉ truy vấn báo cáo, ca trực và cảnh báo khi mở đúng tab để tránh
-        // tải dữ liệu vận hành không cần thiết trên các màn hình quản trị khác.
         $incidentModel = new IncidentModel();
         $shiftModel = new StaffShiftModel();
         $ticketSecurityModel = new TicketSecurityModel();
+
+        // Đảm bảo các bộ phim đang chiếu đều có suất chiếu mở bán để khách có thể đặt vé ngay
+        if ($isAdmin) {
+            $showModel->getSellingShowsGroupedByMovie();
+        }
+
+        $editMovie = null;
+        if ($isAdmin && $tab === 'movies' && !empty($_GET['edit_id'])) {
+            $editMovie = $movieModel->findWithDetails((int) $_GET['edit_id']);
+            if ($editMovie) {
+                $stmtG = $movieModel->getDb()->prepare("SELECT genre_id FROM movie_genres WHERE movie_id = :mid");
+                $stmtG->execute(['mid' => (int) $editMovie['id']]);
+                $editMovie['genre_ids'] = array_map('intval', $stmtG->fetchAll(\PDO::FETCH_COLUMN));
+            }
+        }
+
+        $editShow = null;
+        if ($isAdmin && $tab === 'shows' && !empty($_GET['edit_show_id'])) {
+            $editShow = $showModel->findShowWithDetails((int) $_GET['edit_show_id']);
+        }
+
         $this->view('admin/dashboard', [
             'pageTitle' => 'Hệ Thống Quản Trị Rạp Chiếu Phim - CineNow Admin',
             'tab' => $tab,
             'isAdmin' => $isAdmin,
             'isStaff' => $isStaff,
             'cinemaInfo' => $userModel->getCinemaInfo(),
-            // Không tải dữ liệu quản trị nhạy cảm khi tài khoản là Staff.
+            'overviewStats' => $isAdmin ? $bookingModel->getOverviewStats() : [],
             'users' => $isAdmin ? $userModel->getAllUsersWithRoles() : [],
-            'movies' => $isAdmin ? $movieModel->all('id DESC') : [],
+            'movies' => $isAdmin ? $movieModel->getAllMoviesWithGenres() : [],
+            'editMovie' => $editMovie,
             'genres' => $isAdmin ? $movieModel->getAllGenres() : [],
             'rooms' => $isAdmin ? $roomModel->all('id ASC') : [],
             'seatTypes' => $isAdmin ? $roomModel->getAllSeatTypes() : [],
             'shows' => $isAdmin ? $showModel->getAllShowsWithDetails() : [],
+            'editShow' => $editShow,
             'bookings' => $bookingModel->getAllBookings(),
             'concessions' => $isAdmin ? $engagementModel->getAllConcessions() : [],
             'coupons' => $isAdmin ? $engagementModel->getAllCoupons() : [],
@@ -125,7 +143,6 @@ class AdminController extends BaseController
         $this->redirect('?route=admin&tab=users');
     }
 
-    // --- NHÁNH 1: CẬP NHẬT CINEMA INFO & USER STATUS ---
     public function saveCinemaInfo(): void
     {
         $this->requireRole(['admin']);
@@ -137,43 +154,100 @@ class AdminController extends BaseController
 
     public function updateUserStatus(): void
     {
-        $this->requireRole(['admin']);
+        $currentAdmin = $this->requireRole(['admin']);
         $userId = (int) ($_POST['user_id'] ?? 0);
-        $status = $_POST['status'] ?? 'active';
+        $status = in_array($_POST['status'] ?? '', ['active', 'locked'], true) ? $_POST['status'] : 'active';
+        $role = trim($_POST['role'] ?? '');
+
+        if ($userId <= 0) {
+            $this->setFlash('danger', 'Tài khoản không hợp lệ.');
+            $this->redirect('?route=admin&tab=users');
+        }
+
+        if ($userId === (int) ($currentAdmin['id'] ?? 0) && ($status === 'locked' || ($role !== '' && $role !== 'admin'))) {
+            $this->setFlash('warning', 'Không thể tự khóa hoặc hạ quyền tài khoản Quản trị viên đang đăng nhập.');
+            $this->redirect('?route=admin&tab=users');
+        }
+
         $userModel = new UserModel();
         $userModel->update($userId, ['status' => $status]);
-        $this->setFlash('success', 'Đã cập nhật trạng thái tài khoản #' . $userId);
+        if ($role !== '') {
+            $userModel->updateUserRole($userId, $role);
+        }
+
+        $this->setFlash('success', 'Đã cập nhật tài khoản #' . $userId . ' thành công.');
         $this->redirect('?route=admin&tab=users');
     }
 
-    // --- NHÁNH 2: THÊM / CẬP NHẬT PHIM ---
     public function saveMovie(): void
     {
         $this->requireRole(['admin']);
         $movieModel = new MovieModel();
+        $showModel = new ShowModel();
 
+        $movieId = (int) ($_POST['movie_id'] ?? 0);
         $title = trim($_POST['title'] ?? '');
-        $slug = trim($_POST['slug'] ?? '') ?: strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $title)) . '-' . rand(10, 99);
-
-        $movieId = $movieModel->create([
-            'title' => $title,
-            'title_vi' => trim($_POST['title_vi'] ?? '') ?: null,
-            'slug' => $slug,
-            'overview' => trim($_POST['overview'] ?? '') ?: null,
-            'poster_path' => trim($_POST['poster_path'] ?? '') ?: null,
-            'release_date' => $_POST['release_date'] ?: date('Y-m-d'),
-            'runtime' => (int) ($_POST['runtime'] ?? 120),
-            'director' => trim($_POST['director'] ?? '') ?: null,
-            'age_rating' => trim($_POST['age_rating'] ?? 'P'),
-            'imdb_rating' => (float) ($_POST['imdb_rating'] ?? 8.0),
-            'status' => $_POST['status'] ?? 'now_showing',
-        ]);
-
-        if (!empty($_POST['genre_ids']) && is_array($_POST['genre_ids'])) {
-            $movieModel->syncGenres($movieId, $_POST['genre_ids']);
+        if ($title === '') {
+            $this->setFlash('danger', 'Vui lòng nhập tên bộ phim.');
+            $this->redirect('?route=admin&tab=movies');
         }
 
-        $this->setFlash('success', 'Đã thêm bộ phim mới thành công!');
+        $baseSlug = strtolower(trim((string) preg_replace('/[^a-zA-Z0-9]+/', '-', $title), '-'));
+        if ($baseSlug === '') {
+            $baseSlug = 'movie';
+        }
+        $slug = trim($_POST['slug'] ?? '') ?: ($baseSlug . '-' . rand(100, 999));
+
+        $posterPath = trim($_POST['poster_path'] ?? '');
+        if ($posterPath !== '' && !str_starts_with($posterPath, 'http://') && !str_starts_with($posterPath, 'https://') && !str_starts_with($posterPath, 'public/') && !is_file(__DIR__ . '/../../' . ltrim($posterPath, '/'))) {
+            $posterPath = 'public/images/posters/dune-part-two.svg';
+        }
+
+        $releaseDate = trim($_POST['release_date'] ?? '');
+        if ($releaseDate === '' || strtotime($releaseDate) === false) {
+            $releaseDate = date('Y-m-d');
+        }
+
+        $status = in_array($_POST['status'] ?? '', ['now_showing', 'coming_soon', 'ended', 'hidden'], true)
+            ? $_POST['status']
+            : 'now_showing';
+
+        $payload = [
+            'title' => $title,
+            'title_vi' => trim($_POST['title_vi'] ?? '') ?: null,
+            'overview' => trim($_POST['overview'] ?? '') ?: null,
+            'poster_path' => $posterPath ?: 'public/images/posters/dune-part-two.svg',
+            'trailer_url' => trim($_POST['trailer_url'] ?? '') ?: null,
+            'release_date' => $releaseDate,
+            'runtime' => max(30, (int) ($_POST['runtime'] ?? 120)),
+            'director' => trim($_POST['director'] ?? '') ?: null,
+            'cast_text' => trim($_POST['cast_text'] ?? '') ?: null,
+            'age_rating' => trim($_POST['age_rating'] ?? 'T13') ?: 'T13',
+            'imdb_rating' => max(1.0, min(10.0, (float) ($_POST['imdb_rating'] ?? 8.0))),
+            'status' => $status,
+        ];
+
+        if ($movieId > 0 && $movieModel->find($movieId)) {
+            $movieModel->update($movieId, $payload);
+            $actionText = 'Đã cập nhật thông tin phim';
+        } else {
+            $payload['slug'] = $slug;
+            $movieId = $movieModel->create($payload);
+            $actionText = 'Đã thêm bộ phim mới';
+        }
+
+        $genreIds = (!empty($_POST['genre_ids']) && is_array($_POST['genre_ids'])) ? $_POST['genre_ids'] : [];
+        $movieModel->syncGenres($movieId, $genreIds);
+
+        $createdShows = 0;
+        if ($status === 'now_showing' && !empty($_POST['auto_create_shows'])) {
+            $createdShows = $showModel->ensureUpcomingShowsForMovie($movieId, 65000, 3);
+        } elseif ($status === 'now_showing') {
+            $createdShows = $showModel->ensureUpcomingShowsForMovie($movieId, 65000, 1);
+        }
+
+        $extraMsg = $createdShows > 0 ? " và tự động mở bán {$createdShows} suất chiếu sắp tới!" : '!';
+        $this->setFlash('success', $actionText . $extraMsg);
         $this->redirect('?route=admin&tab=movies');
     }
 
@@ -181,30 +255,116 @@ class AdminController extends BaseController
     {
         $this->requireRole(['admin']);
         $movieId = (int) ($_POST['movie_id'] ?? 0);
-        $status = $_POST['status'] ?? 'now_showing';
+        $status = in_array($_POST['status'] ?? '', ['now_showing', 'coming_soon', 'ended', 'hidden'], true)
+            ? $_POST['status']
+            : 'now_showing';
 
         $movieModel = new MovieModel();
         $movieModel->update($movieId, ['status' => $status]);
-        $this->setFlash('success', 'Đã cập nhật trạng thái phim #' . $movieId . ' (Không xóa cứng theo đúng quy tắc DB).');
+
+        $extra = '';
+        if ($status === 'now_showing') {
+            $showModel = new ShowModel();
+            $created = $showModel->ensureUpcomingShowsForMovie($movieId, 65000, 3);
+            if ($created > 0) {
+                $extra = " Đã tự động tạo {$created} suất chiếu mở bán cho phim.";
+            }
+        }
+
+        $this->setFlash('success', "Đã cập nhật trạng thái phim #{$movieId} sang '{$status}'." . $extra);
         $this->redirect('?route=admin&tab=movies');
     }
 
-    // --- NHÁNH 3: THÊM PHÒNG CHIẾU & KHỞI TẠO SƠ ĐỒ GHẾ ---
+    public function deleteMovie(): void
+    {
+        $this->requireRole(['admin']);
+        $movieId = (int) ($_POST['movie_id'] ?? 0);
+        if ($movieId <= 0) {
+            $this->redirect('?route=admin&tab=movies');
+        }
+
+        $movieModel = new MovieModel();
+        $result = $movieModel->deleteOrHideMovie($movieId);
+        if ($result === 'deleted') {
+            $this->setFlash('success', "Đã xóa bộ phim #{$movieId}.");
+        } else {
+            $this->setFlash('info', "Phim #{$movieId} đã có đơn đặt vé nên được chuyển sang trạng thái ẩn (hidden).");
+        }
+        $this->redirect('?route=admin&tab=movies');
+    }
+
     public function saveRoom(): void
     {
         $this->requireRole(['admin']);
         $roomModel = new RoomModel();
 
-        $roomId = $roomModel->create([
-            'name' => trim($_POST['name'] ?? 'Phòng mới'),
-            'room_type' => $_POST['room_type'] ?? 'standard',
-            'capacity' => 0,
-            'status' => 'active',
-            'description' => trim($_POST['description'] ?? ''),
-        ]);
+        $name = trim($_POST['name'] ?? '');
+        if ($name === '') {
+            $this->setFlash('danger', 'Vui lòng nhập tên phòng chiếu.');
+            $this->redirect('?route=admin&tab=rooms');
+        }
 
-        $createdSeats = $roomModel->generateDefaultSeatsForRoom($roomId);
-        $this->setFlash('success', "Đã tạo phòng chiếu và sinh tự động {$createdSeats} ghế!");
+        try {
+            $roomId = $roomModel->create([
+                'name' => $name,
+                'room_type' => in_array($_POST['room_type'] ?? '', ['standard', 'vip', 'imax', 'four_d'], true) ? $_POST['room_type'] : 'standard',
+                'capacity' => 0,
+                'status' => 'active',
+                'description' => trim($_POST['description'] ?? ''),
+            ]);
+
+            $createdSeats = $roomModel->generateDefaultSeatsForRoom($roomId);
+            $this->setFlash('success', "Đã tạo phòng chiếu '{$name}' và khởi tạo {$createdSeats} ghế tiêu chuẩn!");
+        } catch (\Throwable $e) {
+            $this->setFlash('danger', 'Không thể tạo phòng chiếu (có thể trùng tên phòng): ' . $e->getMessage());
+        }
+        $this->redirect('?route=admin&tab=rooms');
+    }
+
+    public function updateRoom(): void
+    {
+        $this->requireRole(['admin']);
+        $roomId = (int) ($_POST['room_id'] ?? 0);
+        if ($roomId <= 0) {
+            $this->redirect('?route=admin&tab=rooms');
+        }
+
+        $roomModel = new RoomModel();
+        $status = in_array($_POST['status'] ?? '', ['active', 'maintenance'], true) ? $_POST['status'] : 'active';
+        $roomType = in_array($_POST['room_type'] ?? '', ['standard', 'vip', 'imax', 'four_d'], true) ? $_POST['room_type'] : 'standard';
+        $name = trim($_POST['name'] ?? '');
+
+        $updateData = [
+            'room_type' => $roomType,
+            'status' => $status,
+        ];
+        if ($name !== '') {
+            $updateData['name'] = $name;
+        }
+        if (isset($_POST['description'])) {
+            $updateData['description'] = trim($_POST['description']);
+        }
+
+        $roomModel->update($roomId, $updateData);
+        $this->setFlash('success', "Đã cập nhật phòng chiếu #{$roomId}.");
+        $this->redirect('?route=admin&tab=rooms');
+    }
+
+    public function deleteRoom(): void
+    {
+        $this->requireRole(['admin']);
+        $roomId = (int) ($_POST['room_id'] ?? 0);
+        if ($roomId <= 0) {
+            $this->redirect('?route=admin&tab=rooms');
+        }
+
+        $roomModel = new RoomModel();
+        $res = $roomModel->deleteOrDisableRoom($roomId);
+        if ($res === 'deleted') {
+            $this->setFlash('success', "Đã xóa phòng chiếu #{$roomId}.");
+        } else {
+            $this->setFlash('info', "Phòng #{$roomId} đã có lịch chiếu nên được chuyển sang trạng thái bảo trì (maintenance).");
+        }
         $this->redirect('?route=admin&tab=rooms');
     }
 
@@ -214,21 +374,25 @@ class AdminController extends BaseController
         $roomId = (int) ($_POST['room_id'] ?? 0);
         $roomModel = new RoomModel();
         $created = $roomModel->generateDefaultSeatsForRoom($roomId);
-        $this->setFlash('success', "Đã khởi tạo bổ sung {$created} ghế cho phòng #{$roomId}.");
+        if ($created > 0) {
+            $this->setFlash('success', "Đã khởi tạo bổ sung {$created} ghế cho phòng #{$roomId}.");
+        } else {
+            $this->setFlash('info', "Phòng #{$roomId} đã có đầy đủ sơ đồ 27 ghế tiêu chuẩn (A1..E3) và đã đồng bộ với các suất chiếu.");
+        }
         $this->redirect('?route=admin&tab=rooms');
     }
 
-    // --- NHÁNH 4: TẠO SUẤT CHIẾU (SHOW) & TỰ ĐỘNG SINH SHOW_SEATS ---
     public function saveShow(): void
     {
         $this->requireRole(['admin']);
         $showModel = new ShowModel();
+        $movieModel = new MovieModel();
 
         try {
             $startTimeInput = $_POST['start_time'] ?? null;
             $movieIdInput = $_POST['movie_id'] ?? null;
             $roomIdInput = $_POST['room_id'] ?? null;
-            $basePriceInput = $_POST['base_price'] ?? 80000;
+            $basePriceInput = $_POST['base_price'] ?? 65000;
             $startTimestamp = is_string($startTimeInput) ? strtotime($startTimeInput) : false;
             $movieId = is_string($movieIdInput) || is_int($movieIdInput)
                 ? filter_var($movieIdInput, FILTER_VALIDATE_INT)
@@ -250,8 +414,11 @@ class AdminController extends BaseController
                 throw new \InvalidArgumentException('Vui lòng chọn phim, phòng, thời gian tương lai và giá vé hợp lệ.');
             }
 
+            $movie = $movieModel->find((int) $movieId);
+            $runtimeMinutes = max(60, (int) ($movie['runtime'] ?? 120));
+
             $startTime = date('Y-m-d H:i:s', $startTimestamp);
-            $endTime = date('Y-m-d H:i:s', $startTimestamp + 2 * 60 * 60);
+            $endTime = date('Y-m-d H:i:s', $startTimestamp + ($runtimeMinutes * 60));
 
             $showId = $showModel->createShowWithSeats([
                 'movie_id' => (int) $movieId,
@@ -261,7 +428,13 @@ class AdminController extends BaseController
                 'base_price' => (float) $basePriceInput,
                 'status' => 'selling',
             ]);
-            $this->setFlash('success', "Đã tạo suất chiếu #{$showId} và tự động khởi tạo danh sách ghế (show_seats)!");
+
+            // Nếu phim đang ở trạng thái sắp chiếu/đã kết thúc thì tự động bật sang đang chiếu để khách đặt vé được ngay
+            if ($movie && $movie['status'] !== 'now_showing') {
+                $movieModel->update((int) $movieId, ['status' => 'now_showing']);
+            }
+
+            $this->setFlash('success', "Đã tạo suất chiếu #{$showId} và mở bán ghế thành công!");
         } catch (\Throwable $e) {
             $this->setFlash('danger', 'Lỗi tạo suất chiếu: ' . $e->getMessage());
         }
@@ -269,23 +442,110 @@ class AdminController extends BaseController
         $this->redirect('?route=admin&tab=shows');
     }
 
-    // --- NHÁNH 5: SOÁT VÉ (CHECK-IN TICKET QR CODE) ---
+    public function updateShow(): void
+    {
+        $this->requireRole(['admin']);
+        $showId = (int) ($_POST['show_id'] ?? 0);
+        if ($showId <= 0) {
+            $this->redirect('?route=admin&tab=shows');
+        }
+
+        $showModel = new ShowModel();
+        $movieModel = new MovieModel();
+
+        try {
+            $existing = $showModel->find($showId);
+            if (!$existing) {
+                throw new \InvalidArgumentException('Không tìm thấy suất chiếu.');
+            }
+
+            $movieId = (int) ($_POST['movie_id'] ?? $existing['movie_id']);
+            $roomId = (int) ($_POST['room_id'] ?? $existing['room_id']);
+            $basePrice = (float) ($_POST['base_price'] ?? $existing['base_price']);
+            $status = in_array($_POST['status'] ?? '', ['scheduled', 'selling', 'closed', 'cancelled'], true)
+                ? $_POST['status']
+                : $existing['status'];
+
+            $startTimeInput = $_POST['start_time'] ?? $existing['start_time'];
+            $startTimestamp = is_string($startTimeInput) ? strtotime($startTimeInput) : false;
+            if ($startTimestamp === false) {
+                throw new \InvalidArgumentException('Thời gian bắt đầu không hợp lệ.');
+            }
+
+            $movie = $movieModel->find($movieId);
+            $runtimeMinutes = max(60, (int) ($movie['runtime'] ?? 120));
+            $startTime = date('Y-m-d H:i:s', $startTimestamp);
+            $endTime = date('Y-m-d H:i:s', $startTimestamp + ($runtimeMinutes * 60));
+
+            $showModel->updateShowWithSeats($showId, [
+                'movie_id' => $movieId,
+                'room_id' => $roomId,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'base_price' => $basePrice,
+                'status' => $status,
+            ]);
+
+            $this->setFlash('success', "Đã cập nhật suất chiếu #{$showId} thành công!");
+        } catch (\Throwable $e) {
+            $this->setFlash('danger', 'Lỗi cập nhật suất chiếu: ' . $e->getMessage());
+        }
+
+        $this->redirect('?route=admin&tab=shows');
+    }
+
+    public function deleteShow(): void
+    {
+        $this->requireRole(['admin']);
+        $showId = (int) ($_POST['show_id'] ?? 0);
+        if ($showId <= 0) {
+            $this->redirect('?route=admin&tab=shows');
+        }
+
+        $showModel = new ShowModel();
+        $res = $showModel->deleteOrCancelShow($showId);
+        if ($res === 'deleted') {
+            $this->setFlash('success', "Đã xóa suất chiếu #{$showId}.");
+        } else {
+            $this->setFlash('info', "Suất chiếu #{$showId} đã có đơn đặt vé nên được chuyển sang trạng thái Đã hủy (cancelled).");
+        }
+        $this->redirect('?route=admin&tab=shows');
+    }
+
+    public function autoGenerateShows(): void
+    {
+        $this->requireRole(['admin']);
+        $showModel = new ShowModel();
+        $created = $showModel->autoGenerateShowsForNowShowingMovies(4);
+        if ($created > 0) {
+            $this->setFlash('success', "Đã tự động tạo bổ sung {$created} suất chiếu mở bán cho các bộ phim Đang chiếu!");
+        } else {
+            $this->setFlash('info', 'Tất cả các bộ phim Đang chiếu đều đã có đủ suất chiếu mở bán.');
+        }
+        $this->redirect('?route=admin&tab=shows');
+    }
+
     public function checkInTicket(): void
     {
         (new TicketSecurityController())->checkIn();
     }
 
-    // --- NHÁNH 7: BẮP NƯỚC (CONCESSIONS) & MÃ GIẢM GIÁ (COUPONS) ---
     public function saveConcession(): void
     {
         $this->requireRole(['admin']);
+        $name = trim($_POST['name'] ?? '');
+        if ($name === '') {
+            $this->setFlash('danger', 'Vui lòng nhập tên sản phẩm bắp nước.');
+            $this->redirect('?route=admin&tab=concessions');
+        }
+
         $engagementModel = new EngagementModel();
         $engagementModel->create([
-            'name' => trim($_POST['name'] ?? ''),
+            'name' => $name,
             'description' => trim($_POST['description'] ?? ''),
-            'price' => (float) ($_POST['price'] ?? 50000),
-            'category' => trim($_POST['category'] ?? 'Combo'),
-            'stock' => (int) ($_POST['stock'] ?? 100),
+            'price' => max(0, (float) ($_POST['price'] ?? 50000)),
+            'category' => trim($_POST['category'] ?? 'Combo') ?: 'Combo',
+            'stock' => max(0, (int) ($_POST['stock'] ?? 100)),
             'status' => 'active',
             'sort_order' => 1,
         ]);
@@ -293,25 +553,93 @@ class AdminController extends BaseController
         $this->redirect('?route=admin&tab=concessions');
     }
 
+    public function deleteConcession(): void
+    {
+        $this->requireRole(['admin']);
+        $id = (int) ($_POST['concession_id'] ?? 0);
+        if ($id > 0) {
+            $engagementModel = new EngagementModel();
+            try {
+                $db = $engagementModel->getDb();
+                $stmtUsed = $db->prepare("SELECT COUNT(*) FROM booking_concessions WHERE concession_id = :id");
+                $stmtUsed->execute(['id' => $id]);
+                if ((int) $stmtUsed->fetchColumn() > 0) {
+                    $engagementModel->update($id, ['status' => 'inactive', 'stock' => 0]);
+                    $this->setFlash('info', 'Đã ngừng bán combo bắp nước #' . $id);
+                } else {
+                    $db->prepare("DELETE FROM concessions WHERE id = :id")->execute(['id' => $id]);
+                    $this->setFlash('success', 'Đã xóa combo bắp nước #' . $id);
+                }
+            } catch (\Throwable $e) {
+                $this->setFlash('danger', 'Không thể xóa sản phẩm: ' . $e->getMessage());
+            }
+        }
+        $this->redirect('?route=admin&tab=concessions');
+    }
+
     public function saveCoupon(): void
     {
         $this->requireRole(['admin']);
-        $engagementModel = new EngagementModel();
-        $db = $engagementModel->getDb();
-        $stmt = $db->prepare("
-            INSERT INTO coupons (code, name, discount_type, discount_value, min_order_amount, usage_limit, status, created_at, updated_at)
-            VALUES (:code, :name, :type, :val, :min_amt, :limit_cnt, 'active', NOW(), NOW())
-        ");
-        $stmt->execute([
-            'code' => strtoupper(trim($_POST['code'] ?? '')),
-            'name' => trim($_POST['name'] ?? ''),
-            'type' => $_POST['discount_type'] ?? 'fixed',
-            'val' => (float) ($_POST['discount_value'] ?? 20000),
-            'min_amt' => (float) ($_POST['min_order_amount'] ?? 0),
-            'limit_cnt' => (int) ($_POST['usage_limit'] ?? 100),
-        ]);
-        $this->setFlash('success', 'Đã tạo mã giảm giá mới!');
+        $code = strtoupper(trim($_POST['code'] ?? ''));
+        $name = trim($_POST['name'] ?? '');
+
+        if ($code === '' || $name === '') {
+            $this->setFlash('danger', 'Vui lòng nhập đầy đủ mã giảm giá và tên chương trình.');
+            $this->redirect('?route=admin&tab=concessions');
+        }
+
+        try {
+            $engagementModel = new EngagementModel();
+            $db = $engagementModel->getDb();
+            $stmt = $db->prepare("
+                INSERT INTO coupons (code, name, discount_type, discount_value, min_order_amount, usage_limit, status, created_at, updated_at)
+                VALUES (:code, :name, :type, :val, :min_amt, :limit_cnt, 'active', NOW(), NOW())
+                ON DUPLICATE KEY UPDATE
+                    name = VALUES(name),
+                    discount_type = VALUES(discount_type),
+                    discount_value = VALUES(discount_value),
+                    min_order_amount = VALUES(min_order_amount),
+                    usage_limit = VALUES(usage_limit),
+                    status = 'active',
+                    updated_at = NOW()
+            ");
+            $stmt->execute([
+                'code' => $code,
+                'name' => $name,
+                'type' => in_array($_POST['discount_type'] ?? '', ['fixed', 'percent'], true) ? $_POST['discount_type'] : 'fixed',
+                'val' => max(0, (float) ($_POST['discount_value'] ?? 20000)),
+                'min_amt' => max(0, (float) ($_POST['min_order_amount'] ?? 0)),
+                'limit_cnt' => max(1, (int) ($_POST['usage_limit'] ?? 100)),
+            ]);
+            $this->setFlash('success', "Đã lưu mã giảm giá {$code} thành công!");
+        } catch (\Throwable $e) {
+            $this->setFlash('danger', 'Lỗi lưu mã giảm giá: ' . $e->getMessage());
+        }
+        $this->redirect('?route=admin&tab=concessions');
+    }
+
+    public function deleteCoupon(): void
+    {
+        $this->requireRole(['admin']);
+        $id = (int) ($_POST['coupon_id'] ?? 0);
+        if ($id > 0) {
+            $engagementModel = new EngagementModel();
+            $db = $engagementModel->getDb();
+            try {
+                $stmtUsed = $db->prepare("SELECT COUNT(*) FROM bookings WHERE coupon_id = :id");
+                $stmtUsed->execute(['id' => $id]);
+                if ((int) $stmtUsed->fetchColumn() > 0) {
+                    $db->prepare("UPDATE coupons SET status = 'inactive', updated_at = NOW() WHERE id = :id")->execute(['id' => $id]);
+                    $this->setFlash('info', 'Mã giảm giá đã phát sinh đơn hàng nên được chuyển sang Ngừng hoạt động.');
+                } else {
+                    $db->prepare("DELETE FROM coupon_usages WHERE coupon_id = :id")->execute(['id' => $id]);
+                    $db->prepare("DELETE FROM coupons WHERE id = :id")->execute(['id' => $id]);
+                    $this->setFlash('success', 'Đã xóa mã giảm giá.');
+                }
+            } catch (\Throwable $e) {
+                $this->setFlash('danger', 'Không thể xóa mã giảm giá: ' . $e->getMessage());
+            }
+        }
         $this->redirect('?route=admin&tab=concessions');
     }
 }
-

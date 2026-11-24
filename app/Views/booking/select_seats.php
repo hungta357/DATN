@@ -127,8 +127,9 @@
                     </div>
                     <div class="card-body p-4">
                         <div class="d-flex gap-3 mb-3 pb-3 border-bottom">
-                            <img src="<?= htmlspecialchars($show['poster_path'] ?: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=300') ?>"
-                                 style="width:70px;height:100px;object-fit:cover;" class="rounded-3">
+                            <img src="<?= htmlspecialchars($show['poster_path'] ?: 'public/images/posters/dune-part-two.svg') ?>"
+                                 style="width:70px;height:100px;object-fit:cover;" class="rounded-3"
+                                 onerror="this.onerror=null;this.src='public/images/posters/dune-part-two.svg';">
                             <div>
                                 <h6 class="fw-bold mb-1" style="color: var(--beta-blue);"><?= htmlspecialchars($show['title_vi'] ?: $show['movie_title']) ?></h6>
                                 <span class="badge bg-warning text-dark mb-1"><?= htmlspecialchars($show['age_rating'] ?: 'P') ?></span>
