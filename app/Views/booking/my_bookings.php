@@ -41,6 +41,11 @@
                                     <a href="?route=booking/checkout&id=<?= (int) $b['id'] ?>" class="btn btn-sm btn-beta-buy">
                                         <?= $b['status'] === 'pending' ? 'Thanh toán ngay' : ($b['status'] === 'confirmed' ? 'Xem Vé QR' : 'Xem chi tiết') ?>
                                     </a>
+                                    <?php if (in_array($b['status'], ['confirmed', 'cancelled', 'refunded'], true)): ?>
+                                        <a href="?route=incidents&amp;booking_id=<?= (int) $b['id'] ?>" class="btn btn-sm btn-outline-primary mt-1">
+                                            <i class="bi bi-chat-square-text me-1"></i>Khiếu nại / hỗ trợ
+                                        </a>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

@@ -6,10 +6,13 @@ use App\Core\BaseController;
 use App\Models\BookingModel;
 use App\Models\EngagementModel;
 use App\Models\GroupBookingModel;
+use App\Models\IncidentModel;
 use App\Models\MovieModel;
 use App\Models\MaintenanceModel;
 use App\Models\RoomModel;
 use App\Models\ShowModel;
+use App\Models\StaffShiftModel;
+use App\Models\TicketSecurityModel;
 use App\Models\UserModel;
 
 /**
@@ -32,14 +35,22 @@ class AdminController extends BaseController
 
         $tab = $_GET['tab'] ?? ($isStaff ? 'bookings' : 'overview');
 
-        // Staff chỉ được vào quầy soát vé và phân hệ sự cố/bảo trì.
-        if ($isStaff && !in_array($tab, ['bookings', 'maintenance'], true)) {
+        // Staff chỉ được vào quầy soát vé, lịch ca, khiếu nại được giao và sự cố/bảo trì.
+        if ($isStaff && !in_array($tab, ['bookings', 'maintenance', 'incidents', 'shifts'], true)) {
             $this->redirect('?route=admin&tab=bookings');
         }
 
         $maintenanceModel = new MaintenanceModel();
         $groupBookingModel = new GroupBookingModel();
         $isMaintenanceTab = $tab === 'maintenance';
+        $isIncidentTab = $tab === 'incidents';
+        $isShiftTab = $tab === 'shifts';
+        $isBookingTab = $tab === 'bookings';
+        // Chỉ truy vấn báo cáo, ca trực và cảnh báo khi mở đúng tab để tránh
+        // tải dữ liệu vận hành không cần thiết trên các màn hình quản trị khác.
+        $incidentModel = new IncidentModel();
+        $shiftModel = new StaffShiftModel();
+        $ticketSecurityModel = new TicketSecurityModel();
         $this->view('admin/dashboard', [
             'pageTitle' => 'Hệ Thống Quản Trị Rạp Chiếu Phim - CineNow Admin',
             'tab' => $tab,
@@ -71,6 +82,17 @@ class AdminController extends BaseController
             'maintenanceStaff' => $isMaintenanceTab && $isAdmin ? $maintenanceModel->getAssignableStaff() : [],
             'maintenanceStats' => $isMaintenanceTab && $isAdmin ? $maintenanceModel->getMonthlyStats() : [],
             'groupBookings' => $tab === 'groups' && $isAdmin ? $groupBookingModel->getAllGroupsForAdmin() : [],
+            // Nhân viên chỉ nhận các khiếu nại được phân công; Admin xem toàn bộ.
+            'incidentReports' => $isIncidentTab ? $incidentModel->getReports(
+                (int) $currentUser['id'],
+                $isAdmin,
+                $isStaff
+            ) : [],
+            'incidentStaff' => $isIncidentTab && $isAdmin ? $incidentModel->getAssignableStaff() : [],
+            'shifts' => $isShiftTab ? $shiftModel->getShifts((int) $currentUser['id'], $isAdmin) : [],
+            'shiftStaff' => $isShiftTab && $isAdmin ? $shiftModel->getAssignableStaff() : [],
+            'shiftRooms' => $isShiftTab && $isAdmin ? $shiftModel->getActiveRooms() : [],
+            'scanAlerts' => $isBookingTab ? $ticketSecurityModel->getAnomalyLogs() : [],
         ], 'layouts/admin');
     }
 
@@ -250,23 +272,7 @@ class AdminController extends BaseController
     // --- NHÁNH 5: SOÁT VÉ (CHECK-IN TICKET QR CODE) ---
     public function checkInTicket(): void
     {
-        $this->requireRole(['admin', 'staff']);
-        $ticketCodeInput = $_POST['ticket_code'] ?? '';
-        $ticketCode = is_string($ticketCodeInput) ? trim($ticketCodeInput) : '';
-
-        try {
-            if ($ticketCode === '') {
-                throw new \InvalidArgumentException('Vui lòng nhập mã vé cần soát.');
-            }
-
-            $bookingModel = new BookingModel();
-            $ticket = $bookingModel->checkInTicketByCode($ticketCode);
-            $this->setFlash('success', "Soát vé thành công! Mã vé: {$ticket['ticket_code']} | Phim: {$ticket['movie_title']} | Phòng: {$ticket['room_name']} | Ghế: {$ticket['seat_code']}");
-        } catch (\Throwable $e) {
-            $this->setFlash('danger', $e->getMessage());
-        }
-
-        $this->redirect('?route=admin&tab=bookings');
+        (new TicketSecurityController())->checkIn();
     }
 
     // --- NHÁNH 7: BẮP NƯỚC (CONCESSIONS) & MÃ GIẢM GIÁ (COUPONS) ---

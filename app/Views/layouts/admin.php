@@ -259,6 +259,16 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
                 </a>
             </li>
             <li>
+                <a href="?route=admin&tab=incidents" class="admin-nav-link <?= $currentTab === 'incidents' ? 'active' : '' ?>">
+                    <i class="bi bi-chat-square-text"></i> Khiếu nại vé
+                </a>
+            </li>
+            <li>
+                <a href="?route=admin&tab=shifts" class="admin-nav-link <?= $currentTab === 'shifts' ? 'active' : '' ?>">
+                    <i class="bi bi-calendar2-check"></i> Ca trực & nhân sự
+                </a>
+            </li>
+            <li>
                 <a href="?route=admin&tab=groups" class="admin-nav-link <?= $currentTab === 'groups' ? 'active' : '' ?>">
                     <i class="bi bi-people"></i> Đặt vé nhóm
                 </a>

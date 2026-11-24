@@ -12,6 +12,8 @@
             <li class="nav-item"><a class="nav-link bg-white border text-dark" href="?route=schedule"><i class="bi bi-calendar3 me-1"></i>Xem lịch chiếu</a></li>
         <?php endif; ?>
         <li class="nav-item"><a class="nav-link <?= $tab === 'maintenance' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=maintenance"><i class="bi bi-tools me-1"></i>Sự cố & bảo trì</a></li>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'incidents' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=incidents"><i class="bi bi-chat-square-text me-1"></i>Khiếu nại vé</a></li>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'shifts' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=shifts"><i class="bi bi-calendar2-check me-1"></i>Ca trực</a></li>
         <li class="nav-item"><a class="nav-link <?= $tab === 'bookings' ? 'active' : 'bg-white border text-dark' ?>" href="?route=admin&tab=bookings">Đơn vé & Soát vé QR</a></li>
     </ul>
 
@@ -391,6 +393,161 @@
             </div>
         </div>
 
+    <?php elseif ($tab === 'incidents'): ?>
+        <?php
+        $incidentCategories = ['ticket' => 'Vé / check-in', 'service' => 'Dịch vụ', 'safety' => 'An toàn', 'other' => 'Khác'];
+        $incidentStatuses = ['open' => 'Mới tiếp nhận', 'in_review' => 'Đang xử lý', 'resolved' => 'Đã giải quyết', 'rejected' => 'Từ chối'];
+        ?>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+                <h4 class="fw-bold mb-1"><i class="bi bi-chat-square-text me-2" style="color:var(--beta-blue)"></i>Quản lý sự cố & khiếu nại vé</h4>
+                <div class="text-muted small">Theo dõi phản ánh gắn với vé, phân công nhân viên và lưu phản hồi.</div>
+            </div>
+            <span class="badge rounded-pill bg-light text-dark border"><?= count($incidentReports ?? []) ?> yêu cầu</span>
+        </div>
+        <?php if (empty($incidentReports)): ?>
+            <div class="card p-4 text-center text-muted">Chưa có yêu cầu khiếu nại được phân công hoặc ghi nhận.</div>
+        <?php endif; ?>
+        <?php foreach ($incidentReports as $incident): ?>
+            <div class="card mb-3">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                        <strong>#<?= (int) $incident['id'] ?> · <?= htmlspecialchars($incident['title'], ENT_QUOTES, 'UTF-8') ?></strong>
+                        <div class="small text-muted">
+                            <?= htmlspecialchars($incidentCategories[$incident['category']] ?? $incident['category'], ENT_QUOTES, 'UTF-8') ?>
+                            <?php if (!empty($incident['ticket_code'])): ?> · Vé <code><?= htmlspecialchars($incident['ticket_code'], ENT_QUOTES, 'UTF-8') ?></code><?php endif; ?>
+                            <?php if (!empty($incident['movie_title'])): ?> · <?= htmlspecialchars($incident['movie_title'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
+                        </div>
+                    </div>
+                    <span class="badge <?= $incident['status'] === 'resolved' ? 'bg-success' : ($incident['status'] === 'rejected' ? 'bg-secondary' : 'bg-warning text-dark') ?>">
+                        <?= htmlspecialchars($incidentStatuses[$incident['status']] ?? $incident['status'], ENT_QUOTES, 'UTF-8') ?>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row small text-muted mb-2">
+                        <div class="col-md-6">Người gửi: <?= htmlspecialchars($incident['reporter_name'], ENT_QUOTES, 'UTF-8') ?></div>
+                        <div class="col-md-6">Phụ trách: <?= htmlspecialchars($incident['assignee_name'] ?? 'Chưa phân công', ENT_QUOTES, 'UTF-8') ?></div>
+                        <div class="col-12">Gửi lúc: <?= date('d/m/Y H:i', strtotime($incident['created_at'])) ?></div>
+                    </div>
+                    <p class="mb-3"><?= nl2br(htmlspecialchars($incident['description'], ENT_QUOTES, 'UTF-8')) ?></p>
+                    <?php if (!empty($isAdmin)): ?>
+                        <form method="POST" action="?route=admin/incidents/assign" class="row g-2 align-items-end border-top pt-3 mb-3">
+                            <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="report_id" value="<?= (int) $incident['id'] ?>">
+                            <div class="col-md-8">
+                                <label class="form-label small">Phân công nhân viên</label>
+                                <select name="staff_id" class="form-select form-select-sm" required>
+                                    <option value="">Chọn nhân viên</option>
+                                    <?php foreach ($incidentStaff as $staff): ?>
+                                        <option value="<?= (int) $staff['id'] ?>" <?= (int) $incident['assigned_to'] === (int) $staff['id'] ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($staff['name'], ENT_QUOTES, 'UTF-8') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-4"><button class="btn btn-sm btn-outline-primary w-100">Lưu phân công</button></div>
+                        </form>
+                    <?php endif; ?>
+                    <form method="POST" action="?route=admin/incidents/update" class="row g-2 border-top pt-3">
+                        <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        <input type="hidden" name="report_id" value="<?= (int) $incident['id'] ?>">
+                        <div class="col-md-3">
+                            <label class="form-label small">Trạng thái</label>
+                            <select name="status" class="form-select form-select-sm" required>
+                                <?php foreach ($incidentStatuses as $value => $label): ?>
+                                    <?php if (!empty($isAdmin) || in_array($value, ['in_review', 'resolved'], true)): ?>
+                                        <option value="<?= $value ?>" <?= $incident['status'] === $value ? 'selected' : '' ?>><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></option>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label small">Phản hồi / hướng xử lý</label>
+                            <textarea name="resolution" rows="2" maxlength="5000" class="form-control form-control-sm"><?= htmlspecialchars($incident['resolution'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end"><button class="btn btn-sm btn-beta-buy w-100">Cập nhật</button></div>
+                    </form>
+                </div>
+            </div>
+        <?php endforeach; ?>
+
+    <?php elseif ($tab === 'shifts'): ?>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+                <h4 class="fw-bold mb-1"><i class="bi bi-calendar2-check me-2" style="color:var(--beta-blue)"></i>Quản lý ca trực & phân công nhân viên</h4>
+                <div class="text-muted small">Mỗi nhân viên không thể nhận hai ca có thời gian chồng lấn.</div>
+            </div>
+            <span class="badge rounded-pill bg-light text-dark border"><?= count($shifts ?? []) ?> ca trực</span>
+        </div>
+        <?php if (!empty($isAdmin)): ?>
+            <div class="card mb-4">
+                <div class="card-header fw-bold"><i class="bi bi-person-plus me-1"></i>Tạo ca và phân công nhân viên</div>
+                <div class="card-body">
+                    <form method="POST" action="?route=admin/shifts/create" class="row g-3">
+                        <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        <div class="col-md-4">
+                            <label class="form-label small">Nhân viên *</label>
+                            <select name="staff_id" class="form-select form-select-sm" required>
+                                <option value="">Chọn nhân viên</option>
+                                <?php foreach ($shiftStaff as $staff): ?>
+                                    <option value="<?= (int) $staff['id'] ?>"><?= htmlspecialchars($staff['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Nhiệm vụ *</label>
+                            <input type="text" name="duty" maxlength="80" class="form-control form-control-sm" required placeholder="Soát vé, quầy dịch vụ...">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Phòng (không bắt buộc)</label>
+                            <select name="room_id" class="form-select form-select-sm">
+                                <option value="">Khu vực chung</option>
+                                <?php foreach ($shiftRooms as $room): ?>
+                                    <option value="<?= (int) $room['id'] ?>"><?= htmlspecialchars($room['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4"><label class="form-label small">Bắt đầu *</label><input type="datetime-local" name="starts_at" min="<?= date('Y-m-d\TH:i') ?>" class="form-control form-control-sm" required></div>
+                        <div class="col-md-4"><label class="form-label small">Kết thúc *</label><input type="datetime-local" name="ends_at" class="form-control form-control-sm" required></div>
+                        <div class="col-md-4"><label class="form-label small">Ghi chú</label><input type="text" name="notes" maxlength="1000" class="form-control form-control-sm" placeholder="Thông tin bàn giao"></div>
+                        <div class="col-12"><button class="btn btn-beta-buy btn-sm"><i class="bi bi-calendar-plus me-1"></i>Lưu ca trực</button></div>
+                    </form>
+                </div>
+            </div>
+        <?php endif; ?>
+        <div class="card">
+            <div class="card-header fw-bold">Lịch ca trực</div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Nhân viên</th><th>Nhiệm vụ / Phòng</th><th>Thời gian</th><th>Ghi chú</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                    <tbody>
+                        <?php foreach ($shifts as $shift): ?>
+                            <tr>
+                                <td class="fw-semibold"><?= htmlspecialchars($shift['staff_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars($shift['duty'], ENT_QUOTES, 'UTF-8') ?><br><span class="small text-muted"><?= htmlspecialchars($shift['room_name'] ?? 'Khu vực chung', ENT_QUOTES, 'UTF-8') ?></span></td>
+                                <td class="small"><?= date('d/m/Y H:i', strtotime($shift['starts_at'])) ?><br>đến <?= date('d/m/Y H:i', strtotime($shift['ends_at'])) ?></td>
+                                <td class="small"><?= htmlspecialchars($shift['notes'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><span class="badge <?= $shift['status'] === 'completed' ? 'bg-success' : ($shift['status'] === 'cancelled' ? 'bg-secondary' : 'bg-primary') ?>"><?= $shift['status'] === 'scheduled' ? 'Đã xếp lịch' : ($shift['status'] === 'completed' ? 'Hoàn thành' : 'Đã hủy') ?></span></td>
+                                <td>
+                                    <?php if ($shift['status'] === 'scheduled' && (!empty($isAdmin) || (int) $shift['staff_id'] === (int) ($_SESSION['user']['id'] ?? 0))): ?>
+                                        <form method="POST" action="?route=admin/shifts/status" class="d-flex gap-1">
+                                            <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                            <input type="hidden" name="shift_id" value="<?= (int) $shift['id'] ?>">
+                                            <?php if (!empty($isAdmin)): ?>
+                                                <button name="status" value="cancelled" class="btn btn-sm btn-outline-danger">Hủy</button>
+                                            <?php endif; ?>
+                                            <button name="status" value="completed" class="btn btn-sm btn-outline-success">Hoàn thành</button>
+                                        </form>
+                                    <?php else: ?>—<?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        <?php if (empty($shifts)): ?><tr><td colspan="6" class="text-center text-muted py-4">Chưa có ca trực nào.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     <?php elseif ($tab === 'maintenance'): ?>
         <?php
         $maintenanceRoomFilter = isset($_GET['maintenance_room']) && is_scalar($_GET['maintenance_room']) ? (string) $_GET['maintenance_room'] : '';
@@ -659,6 +816,30 @@
         </script>
 
     <?php elseif ($tab === 'bookings'): ?>
+        <?php if (!empty($scanAlerts)): ?>
+            <div class="card border-warning mb-3">
+                <div class="card-header bg-warning-subtle fw-bold text-dark">
+                    <i class="bi bi-shield-exclamation me-1"></i>Cảnh báo bất thường khi soát vé
+                    <span class="badge bg-warning text-dark ms-1"><?= count($scanAlerts) ?></span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead><tr><th>Thời điểm</th><th>Mã vé</th><th>Nhân viên</th><th>Dấu hiệu</th><th>Chi tiết</th></tr></thead>
+                        <tbody>
+                            <?php foreach ($scanAlerts as $alert): ?>
+                                <tr>
+                                    <td class="small"><?= date('d/m/Y H:i:s', strtotime($alert['scanned_at'])) ?></td>
+                                    <td><code><?= htmlspecialchars($alert['ticket_code'], ENT_QUOTES, 'UTF-8') ?></code></td>
+                                    <td><?= htmlspecialchars($alert['staff_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><span class="badge bg-danger"><?= htmlspecialchars($alert['anomaly_type'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                                    <td class="small"><?= htmlspecialchars($alert['details'], ENT_QUOTES, 'UTF-8') ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        <?php endif; ?>
         <div class="row g-4">
             <div class="col-md-4">
                 <div class="card border-0 shadow-sm bg-white">

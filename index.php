@@ -52,6 +52,9 @@ use App\Controllers\BookingController;
 use App\Controllers\HomeController;
 use App\Controllers\GroupBookingController;
 use App\Controllers\MaintenanceController;
+use App\Controllers\IncidentController;
+use App\Controllers\StaffShiftController;
+use App\Controllers\TicketSecurityController;
 use App\Controllers\WalletController;
 
 $route = $_GET['route'] ?? 'home';
@@ -134,6 +137,12 @@ switch ($route) {
     case 'booking/group/pay-share':
         (new GroupBookingController())->payShare();
         break;
+    case 'incidents':
+        (new IncidentController())->index();
+        break;
+    case 'incidents/create':
+        (new IncidentController())->create();
+        break;
 
     // --- NHÁNH 6: WALLET (VÍ NỘI BỘ) ---
     case 'wallet':
@@ -178,7 +187,22 @@ switch ($route) {
         (new AdminController())->saveShow();
         break;
     case 'admin/ticket/checkin':
-        (new AdminController())->checkInTicket();
+        (new TicketSecurityController())->checkIn();
+        break;
+    case 'admin/incidents/assign':
+        (new IncidentController())->assign();
+        break;
+    case 'admin/incidents/update':
+        (new IncidentController())->update();
+        break;
+    case 'admin/shifts':
+        (new StaffShiftController())->index();
+        break;
+    case 'admin/shifts/create':
+        (new StaffShiftController())->create();
+        break;
+    case 'admin/shifts/status':
+        (new StaffShiftController())->updateStatus();
         break;
     case 'admin/concession/save':
         (new AdminController())->saveConcession();

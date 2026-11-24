@@ -445,57 +445,14 @@ class BookingModel extends BaseModel
     /**
      * Soát vé (Check-in ticket) dành cho Staff / Admin
      */
-    public function checkInTicketByCode(string $ticketCode): array
+    public function checkInTicketByCode(string $ticketCode, ?int $staffId = null): array
     {
-        $this->db->beginTransaction();
-        try {
-            $stmt = $this->db->prepare("
-                SELECT t.*, bd.booking_id, s.seat_code, b.booking_code, m.title AS movie_title, sh.start_time, r.name AS room_name
-                FROM tickets t
-                INNER JOIN booking_details bd ON bd.id = t.booking_detail_id
-                INNER JOIN bookings b ON b.id = bd.booking_id
-                INNER JOIN show_seats ss ON ss.id = bd.show_seat_id
-                INNER JOIN seats s ON s.id = ss.seat_id
-                INNER JOIN shows sh ON sh.id = b.show_id
-                INNER JOIN movies m ON m.id = sh.movie_id
-                INNER JOIN rooms r ON r.id = sh.room_id
-                WHERE t.ticket_code = :code
-                LIMIT 1
-                FOR UPDATE
-            ");
-            $stmt->execute(['code' => trim($ticketCode)]);
-            $ticket = $stmt->fetch();
-
-            if (!$ticket) {
-                throw new Exception('Mã vé không tồn tại trong hệ thống.');
-            }
-            if ($ticket['status'] === 'used') {
-                throw new Exception("Vé {$ticketCode} đã được sử dụng lúc {$ticket['checked_in_at']}.");
-            }
-            if ($ticket['status'] !== 'valid') {
-                throw new Exception("Vé {$ticketCode} không hợp lệ (Trạng thái: {$ticket['status']}).");
-            }
-
-            $stmtUpdate = $this->db->prepare("
-                UPDATE tickets
-                SET status = 'used', checked_in_at = NOW(), updated_at = NOW()
-                WHERE id = :id AND status = 'valid'
-            ");
-            $stmtUpdate->execute(['id' => $ticket['id']]);
-            if ($stmtUpdate->rowCount() !== 1) {
-                throw new Exception('Vé vừa được soát bởi một nhân viên khác. Vui lòng kiểm tra lại.');
-            }
-
-            $this->db->commit();
-            $ticket['status'] = 'used';
-            $ticket['checked_in_at'] = date('Y-m-d H:i:s');
-            return $ticket;
-        } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-            throw $e;
+        // Duy trì điểm gọi cũ nhưng chuyển toàn bộ thao tác sang model có lưu nhật ký.
+        $staffId = $staffId ?? (int) ($_SESSION['user']['id'] ?? 0);
+        if ($staffId <= 0) {
+            throw new \InvalidArgumentException('Không xác định được nhân viên thực hiện soát vé.');
         }
+        return (new TicketSecurityModel())->checkInTicketByCode($ticketCode, $staffId);
     }
 }
 

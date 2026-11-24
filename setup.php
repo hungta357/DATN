@@ -67,6 +67,12 @@ try {
     }
     $pdo->exec($groupBookingSql);
 
+    $operationalSql = file_get_contents(__DIR__ . '/database/operational_features.sql');
+    if ($operationalSql === false) {
+        throw new RuntimeException('Không đọc được database/operational_features.sql.');
+    }
+    $pdo->exec($operationalSql);
+
     // 3. Nạp dữ liệu mẫu từ seed_sample_data.sql
     $seedSql = file_get_contents(__DIR__ . '/database/seed_sample_data.sql');
     $pdo->exec($seedSql);

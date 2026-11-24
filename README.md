@@ -49,8 +49,8 @@ Sau khi chạy `php setup.php`:
 ## 4. Phân quyền
 
 - **Admin:** Quản lý toàn bộ hệ thống.
-- **Staff:** Xem lịch chiếu, xem danh sách đơn vé và thực hiện soát vé tại rạp; tạo báo cáo sự cố và cập nhật tiến độ các sự cố được phân công. Staff không được truy cập các khu vực quản lý tài khoản, phim, phòng, suất chiếu, bắp nước hoặc mã giảm giá.
-- **Customer:** Đăng ký, đăng nhập, tìm phim, xem lịch chiếu, đặt vé và quản lý vé cá nhân.
+- **Staff:** Xem lịch chiếu, xem và cập nhật ca trực cá nhân, thực hiện soát vé; tạo báo cáo bảo trì và xử lý các sự cố/khiếu nại được phân công. Staff không được truy cập các khu vực quản lý tài khoản, phim, phòng, suất chiếu, bắp nước hoặc mã giảm giá.
+- **Customer:** Đăng ký, đăng nhập, tìm phim, xem lịch chiếu, đặt vé, quản lý vé cá nhân và gửi khiếu nại gắn với vé đã thanh toán.
 
 ## 5. Các chức năng đang có trong source
 
@@ -65,6 +65,11 @@ Sau khi chạy `php setup.php`:
 - Khu vực quản trị phim, phòng/ghế, suất chiếu, đơn vé, soát vé và bắp nước/mã giảm giá.
 - Theo dõi sự cố/bảo trì: ghi nhận ảnh minh chứng, phân công nhân viên, đặt hạn xử lý, lưu lịch sử và Admin xác nhận hoàn thành. Ghế sự cố được khóa đặt; phòng có sự cố nghiêm trọng được tạm ngừng đến khi xác nhận khắc phục.
 - Đặt vé nhóm: tạo mã mời, mời thành viên đã đăng nhập, mỗi người chọn một ghế; người tạo trả chung hoặc các thành viên chia đều thanh toán qua ví nội bộ.
+- Quản lý khiếu nại vé: khách gửi yêu cầu trên vé của chính mình; Admin phân công nhân viên, cập nhật trạng thái và phản hồi, nhân viên chỉ xử lý yêu cầu được giao.
+- Quản lý ca trực: Admin phân công nhân viên theo thời gian, nhiệm vụ và phòng; hệ thống chặn các ca trùng giờ cho cùng một nhân viên. Nhân viên xem lịch cá nhân và đánh dấu hoàn thành.
+- Cảnh báo soát vé: lưu nhật ký mỗi lượt soát; phát hiện mã vé không tồn tại/không hợp lệ, quét trùng, nhiều lần quét thất bại trong 5 phút và lượt quét ngoài khung thời gian suất chiếu. Cảnh báo hiện tại màn hình Đơn vé & Soát vé.
+
+Các bảng cho ba nghiệp vụ mới được tạo idempotent từ `database/operational_features.sql` khi chạy `php setup.php`.
 
 ## 6. Ghi chú nghiệp vụ và giới hạn hiện tại
 
