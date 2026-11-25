@@ -191,7 +191,13 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
         .btn-beta-buy:hover { filter:brightness(1.07); transform:translateY(-1px); }
         .admin-topbar .btn-outline-secondary { border-color:#ded5c5; color:#6d6048; }
         .admin-topbar .btn-outline-secondary:hover { background:#292720; color:#f2d99f; border-color:#292720; }
+        .admin-account-chip { display:inline-flex; align-items:center; gap:9px; padding:5px 12px 5px 6px; border:1px solid #e8e1d3; border-radius:999px; background:#fffdfa; }
+        .admin-account-avatar { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:linear-gradient(135deg,#e4ca8c,#b58b45); color:#292720; font-size:15px; }
+        .admin-account-details { display:flex; flex-direction:column; line-height:1.2; text-align:left; }
+        .admin-account-label { color:#8b7b5e; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+        .admin-account-name { max-width:180px; overflow:hidden; color:#292720; font-size:12px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
         @media(max-width:991.98px) { .admin-content{padding:20px 15px}.admin-topbar{padding:13px 16px} }
+        @media(max-width:767.98px) { .admin-topbar{align-items:flex-start;flex-wrap:wrap;gap:12px}.admin-topbar>div:last-child{width:100%;justify-content:space-between!important}.admin-account-name{max-width:145px} }
     </style>
 </head>
 <body>
@@ -212,29 +218,34 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
             <li class="admin-nav-label">Bảng điều khiển</li>
             <li>
                 <a href="?route=admin&tab=overview" class="admin-nav-link <?= $currentTab === 'overview' ? 'active' : '' ?>">
-                    <i class="bi bi-speedometer2"></i> Tổng quan hệ thống
+                    <i class="bi bi-speedometer2"></i> Tổng quan
                 </a>
             </li>
 
-            <li class="admin-nav-label mt-2">Quản lý 7 Nhánh Nghiệp vụ</li>
+            <li class="admin-nav-label mt-2">Quản lý hệ thống</li>
             <li>
                 <a href="?route=admin&tab=users" class="admin-nav-link <?= $currentTab === 'users' ? 'active' : '' ?>">
-                    <i class="bi bi-people-fill"></i> 1. Rạp, Tài khoản & Admin
+                    <i class="bi bi-people-fill"></i> Rạp, Tài khoản & Admin
+                </a>
+            </li>
+            <li>
+                <a href="?route=admin&tab=contacts" class="admin-nav-link <?= $currentTab === 'contacts' ? 'active' : '' ?>">
+                    <i class="bi bi-chat-square-text-fill"></i> Phản hồi khách hàng
                 </a>
             </li>
             <li>
                 <a href="?route=admin&tab=movies" class="admin-nav-link <?= $currentTab === 'movies' ? 'active' : '' ?>">
-                    <i class="bi bi-film"></i> 2. Phim & Thể loại
+                    <i class="bi bi-film"></i> Phim & Thể loại
                 </a>
             </li>
             <li>
                 <a href="?route=admin&tab=rooms" class="admin-nav-link <?= $currentTab === 'rooms' ? 'active' : '' ?>">
-                    <i class="bi bi-grid-3x3-gap-fill"></i> 3. Phòng chiếu & Sơ đồ ghế
+                    <i class="bi bi-grid-3x3-gap-fill"></i> Phòng chiếu & Sơ đồ ghế
                 </a>
             </li>
             <li>
                 <a href="?route=admin&tab=shows" class="admin-nav-link <?= $currentTab === 'shows' ? 'active' : '' ?>">
-                    <i class="bi bi-calendar2-week-fill"></i> 4. Lịch & Suất chiếu
+                    <i class="bi bi-calendar2-week-fill"></i> Lịch & Suất chiếu
                 </a>
             </li>
             <?php endif; ?>
@@ -244,13 +255,13 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
             <?php endif; ?>
             <li>
                 <a href="?route=admin&tab=bookings" class="admin-nav-link <?= $currentTab === 'bookings' ? 'active' : '' ?>">
-                    <i class="bi bi-qr-code-scan"></i> 5-6. Đơn vé & Soát vé QR
+                    <i class="bi bi-qr-code-scan"></i> Đơn vé & Soát vé QR
                 </a>
             </li>
             <?php if (!empty($isAdmin)): ?>
             <li>
                 <a href="?route=admin&tab=concessions" class="admin-nav-link <?= $currentTab === 'concessions' ? 'active' : '' ?>">
-                    <i class="bi bi-cup-straw"></i> 7. Bắp nước & Mã giảm giá
+                    <i class="bi bi-cup-straw"></i> Bắp nước & Mã giảm giá
                 </a>
             </li>
             <?php endif; ?>
@@ -269,7 +280,7 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
                     <i class="bi bi-box-arrow-up-right me-1"></i>Xem Trang Khách Hàng
                 </a>
                 <a href="?route=admin/logout" class="btn btn-danger btn-sm">
-                    <i class="bi bi-power me-1"></i>Đăng Xuất Quản Trị
+                    <i class="bi bi-box-arrow-right me-1"></i>Đăng xuất
                 </a>
             </div>
         </div>
@@ -284,11 +295,15 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
                 </h5>
             </div>
             <div class="d-flex align-items-center gap-3">
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2">
-                    <i class="bi bi-person-check-fill me-1"></i>Đang đăng nhập: <strong><?= htmlspecialchars($adminUser['name']) ?></strong>
-                </span>
+                <div class="admin-account-chip" title="<?= htmlspecialchars($adminUser['email'], ENT_QUOTES, 'UTF-8') ?>">
+                    <span class="admin-account-avatar"><i class="bi bi-person-fill" aria-hidden="true"></i></span>
+                    <span class="admin-account-details">
+                        <span class="admin-account-label">Tài khoản</span>
+                        <strong class="admin-account-name"><?= htmlspecialchars($adminUser['name']) ?></strong>
+                    </span>
+                </div>
                 <a href="?route=admin/logout" class="btn btn-sm btn-outline-danger">
-                    <i class="bi bi-box-arrow-right me-1"></i>Thoát Admin
+                    <i class="bi bi-box-arrow-right me-1"></i>Đăng xuất
                 </a>
             </div>
         </header>

@@ -57,6 +57,32 @@ CREATE TABLE cinema_info (
     updated_at TIMESTAMP NULL
 ) ENGINE=InnoDB;
 
+-- Mo rong thong tin rap
+ALTER TABLE cinema_info
+    ADD COLUMN opening_hours VARCHAR(150) NULL AFTER description,
+    ADD COLUMN facilities TEXT NULL AFTER opening_hours,
+    ADD COLUMN website VARCHAR(255) NULL AFTER facilities,
+    ADD COLUMN map_url VARCHAR(500) NULL AFTER website;
+
+CREATE TABLE IF NOT EXISTS contact_messages (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NULL,
+    full_name VARCHAR(150) NOT NULL,
+    email VARCHAR(150) NOT NULL,
+    phone VARCHAR(20) NULL,
+    subject VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    admin_reply TEXT NULL,
+    status ENUM('new','processing','replied','closed') NOT NULL DEFAULT 'new',
+    replied_at DATETIME NULL,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    INDEX idx_contact_status_created (status, created_at),
+    INDEX idx_contact_email (email),
+    CONSTRAINT fk_contact_messages_user FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+
 -- 2. MOVIES / GENRES
 CREATE TABLE movies (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -147,7 +173,6 @@ CREATE TABLE shows (
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
     base_price DECIMAL(12,2) NOT NULL,
-    is_early TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = Suat chieu som (gia uu dai buoi sang)',
     status ENUM('scheduled','selling','cancelled','completed') NOT NULL DEFAULT 'scheduled',
     created_at TIMESTAMP NULL,
     updated_at TIMESTAMP NULL,
@@ -157,8 +182,7 @@ CREATE TABLE shows (
       ON UPDATE CASCADE ON DELETE RESTRICT,
     INDEX idx_shows_start_status (start_time, status),
     INDEX idx_shows_movie_start (movie_id, start_time),
-    INDEX idx_shows_room_start (room_id, start_time),
-    INDEX idx_shows_is_early (is_early, start_time)
+    INDEX idx_shows_room_start (room_id, start_time)
 ) ENGINE=InnoDB;
 
 -- Moi ghe trong moi suat chieu co mot dong trang thai va gia rieng.

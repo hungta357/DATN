@@ -70,7 +70,44 @@ class RoomModel extends BaseModel
         $stmtCap = $this->db->prepare("UPDATE rooms SET capacity = (SELECT COUNT(*) FROM seats WHERE room_id = :rid1 AND status = 'active'), updated_at = NOW() WHERE id = :rid2");
         $stmtCap->execute(['rid1' => $roomId, 'rid2' => $roomId]);
 
+        // Đồng bộ ghế bổ sung cho các suất chiếu đang có của phòng này
+        $stmtSyncShows = $this->db->prepare("
+            INSERT IGNORE INTO show_seats (show_id, seat_id, price, status, created_at, updated_at)
+            SELECT sh.id, s.id, (sh.base_price + st.surcharge),
+                   CASE WHEN s.status = 'active' THEN 'available' ELSE 'blocked' END,
+                   NOW(), NOW()
+            FROM shows sh
+            INNER JOIN seats s ON s.room_id = sh.room_id
+            INNER JOIN seat_types st ON st.id = s.seat_type_id
+            WHERE sh.room_id = :room_id
+        ");
+        $stmtSyncShows->execute(['room_id' => $roomId]);
+
         return $count;
+    }
+
+    public function deleteOrDisableRoom(int $roomId): string
+    {
+        $stmtCheck = $this->db->prepare("SELECT COUNT(*) FROM shows WHERE room_id = :rid");
+        $stmtCheck->execute(['rid' => $roomId]);
+        if ((int) $stmtCheck->fetchColumn() > 0) {
+            $this->update($roomId, ['status' => 'maintenance']);
+            return 'maintenance';
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $this->db->prepare("DELETE FROM seats WHERE room_id = :rid")->execute(['rid' => $roomId]);
+            $this->db->prepare("DELETE FROM rooms WHERE id = :rid")->execute(['rid' => $roomId]);
+            $this->db->commit();
+            return 'deleted';
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->update($roomId, ['status' => 'maintenance']);
+            return 'maintenance';
+        }
     }
 }
 

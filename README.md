@@ -69,6 +69,7 @@ Sau khi chạy `php setup.php`:
 - Khi tạo suất chiếu, hệ thống sinh danh sách ghế cho suất chiếu.
 - Quy trình giữ ghế sử dụng transaction và khóa bản ghi để hạn chế hai người đặt cùng ghế.
 - Thời gian giữ ghế mặc định là 10 phút.
+- Đơn chờ thanh toán hết hạn sẽ được đóng; ghế, tồn kho bắp nước và lượt sử dụng coupon được giải phóng để có thể đặt lại.
 - Việc xác nhận thanh toán và phát hành vé được xử lý trong transaction.
 - Các phương thức VNPay/MoMo trong database mới là cấu hình phương thức; **chưa được xem là tích hợp cổng thanh toán thật** nếu chưa có thông tin merchant, chữ ký và callback xác thực từ nhà cung cấp.
 - Mã QR cần được kiểm thử cùng thiết bị/quy trình quét thực tế trước khi nghiệm thu.
@@ -140,3 +141,12 @@ DATN/
 ├── setup.php
 └── README.md
 ```
+
+
+## Bổ sung: Thông tin rạp và tương tác khách hàng
+
+- Trang công khai `?route=about` hiển thị địa chỉ, hotline, email, giờ hoạt động, tiện ích và liên kết bản đồ (nếu đã cấu hình).
+- Trang `?route=contact` cho phép khách gửi câu hỏi/góp ý. Khách đã đăng nhập được gắn user_id; khách vãng lai vẫn gửi được.
+- Admin vào `?route=admin&tab=users` để cập nhật thông tin rạp; vào `?route=admin&tab=contacts` để xem, ghi phản hồi nội bộ và cập nhật trạng thái yêu cầu.
+- Nếu đang dùng database đã có, import một lần file `database/migration_cinema_customer_engagement.sql` trong phpMyAdmin. Nếu tạo database mới, dùng `database/cinema_complete.sql` đã tích hợp sẵn thay đổi.
+- Phản hồi hiện được lưu trong hệ thống quản trị; chức năng gửi email phản hồi tự động chưa được cấu hình trong phần bổ sung này.

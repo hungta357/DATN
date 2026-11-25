@@ -43,8 +43,9 @@
                 <div class="col-md-3 col-lg-2">
                     <a href="?route=movie/detail&id=<?= (int) $movie['id'] ?>" class="beta-poster-wrap d-block">
                         <span class="beta-age-badge <?= $ageClass ?>"><?= htmlspecialchars($age) ?></span>
-                        <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600') ?>"
-                             alt="<?= htmlspecialchars($movie['title']) ?>">
+                        <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'public/images/posters/dune-part-two.svg') ?>"
+                             alt="<?= htmlspecialchars($movie['title']) ?>"
+                             onerror="this.onerror=null;this.src='public/images/posters/dune-part-two.svg';">
                     </a>
                 </div>
                 <div class="col-md-9 col-lg-10">
@@ -68,21 +69,10 @@
                     <?php else: ?>
                         <div class="d-flex flex-wrap gap-3">
                             <?php foreach ($movieShows as $sh): ?>
-                                <?php $isEarly = \App\Models\ShowModel::isEarlyShow($sh); ?>
-                                <a href="?route=booking/seats&show_id=<?= (int) $sh['id'] ?>" class="beta-time-slot <?= $isEarly ? 'slot-early' : '' ?>">
-                                    <div class="slot-hour">
-                                        <?= date('H:i', strtotime($sh['start_time'])) ?>
-                                        <?php if ($isEarly): ?>
-                                            <span class="badge-early">Sớm</span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="small fw-semibold" style="color: var(--accent, #ffd166);">
-                                        <?= date('d/m', strtotime($sh['start_time'])) ?> • <?= htmlspecialchars($sh['room_name']) ?>
-                                    </div>
-                                    <div class="slot-seats">
-                                        <?= (int) ($sh['available_seats'] ?? 20) ?> ghế trống
-                                        · <?= number_format((float) $sh['base_price']) ?>đ
-                                    </div>
+                                <a href="?route=booking/seats&show_id=<?= (int) $sh['id'] ?>" class="beta-time-slot">
+                                    <div class="slot-hour"><?= date('H:i', strtotime($sh['start_time'])) ?></div>
+                                    <div class="small text-primary fw-semibold"><?= date('d/m', strtotime($sh['start_time'])) ?> • <?= htmlspecialchars($sh['room_name']) ?></div>
+                                    <div class="slot-seats"><?= (int) ($sh['available_seats'] ?? 20) ?> ghế trống</div>
                                 </a>
                             <?php endforeach; ?>
                         </div>

@@ -124,6 +124,35 @@ class HomeController extends BaseController
         ]);
     }
 
+    public function contact(): void
+    {
+        $userModel = new UserModel();
+        $this->view('home/contact', [
+            'pageTitle' => 'Liên hệ và góp ý - ' . $userModel->getCinemaInfo()['name'],
+            'cinemaInfo' => $userModel->getCinemaInfo(),
+        ]);
+    }
+
+    public function submitContact(): void
+    {
+        $name = trim($_POST['full_name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $subject = trim($_POST['subject'] ?? '');
+        $message = trim($_POST['message'] ?? '');
+        $phone = trim($_POST['phone'] ?? '');
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $subject === '' || mb_strlen($message) < 10) {
+            $this->setFlash('danger', 'Vui lòng nhập đầy đủ thông tin hợp lệ. Nội dung góp ý tối thiểu 10 ký tự.');
+            $this->redirect('?route=contact');
+        }
+        $user = $_SESSION['user'] ?? null;
+        (new EngagementModel())->createContactMessage([
+            'user_id' => $user['id'] ?? null, 'full_name' => $name, 'email' => $email,
+            'phone' => $phone, 'subject' => $subject, 'message' => $message,
+        ]);
+        $this->setFlash('success', 'Cảm ơn bạn! Góp ý đã được gửi đến bộ phận chăm sóc khách hàng.');
+        $this->redirect('?route=contact');
+    }
+
     public function movieDetail(): void
     {
         $id = (int) ($_GET['id'] ?? 0);

@@ -18,8 +18,9 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
             <div class="col-md-4 col-lg-3">
                 <div class="beta-poster-wrap">
                     <span class="beta-age-badge <?= $ageClass ?>"><?= htmlspecialchars($age) ?></span>
-                    <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600') ?>"
-                         alt="<?= htmlspecialchars($movie['title']) ?>">
+                    <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'public/images/posters/dune-part-two.svg') ?>"
+                         alt="<?= htmlspecialchars($movie['title']) ?>"
+                         onerror="this.onerror=null;this.src='public/images/posters/dune-part-two.svg';">
                 </div>
                 <?php if (!empty($movie['trailer_url'])): ?>
                     <button type="button" class="btn btn-warning w-100 btn-sm fw-bold mt-2 text-dark" data-bs-toggle="modal" data-bs-target="#trailerModal">

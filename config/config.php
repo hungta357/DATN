@@ -22,12 +22,6 @@ return [
         'base_url' => getenv('APP_URL') ?: 'http://localhost:8000',
         'timezone' => 'Asia/Ho_Chi_Minh',
         'hold_seat_minutes' => 10, // Thời gian giữ ghế (phút)
-        // Suất chiếu sớm: suất bắt đầu trước giờ này (0-23) được đánh dấu is_early
-        'early_show_before_hour' => 12,
-        // Giảm % giá vé cơ bản so với suất thường khi tạo suất sớm (0-50)
-        'early_show_discount_percent' => 20,
-        // Giá cơ bản gợi ý cho suất thường (VNĐ)
-        'default_base_price' => 75000,
     ],
     'db' => [
         'host' => getenv('DB_HOST') ?: '127.0.0.1',

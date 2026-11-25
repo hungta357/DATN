@@ -1,53 +1,9 @@
-<?php
-$appCfg = require dirname(__DIR__, 3) . '/config/config.php';
-$earlyHour = (int) ($appCfg['app']['early_show_before_hour'] ?? 12);
-$earlyDiscount = (int) ($appCfg['app']['early_show_discount_percent'] ?? 20);
-$defaultBase = (float) ($appCfg['app']['default_base_price'] ?? 75000);
-$earlyBase = \App\Models\ShowModel::suggestEarlyBasePrice($defaultBase, $earlyDiscount);
-?>
 <div class="container py-4">
     <div class="text-center mb-4">
         <h2 class="oswald-font fw-bold text-uppercase mb-1" style="color: var(--beta-blue);">
             BẢNG GIÁ VÉ TẠI <?= htmlspecialchars(strtoupper($cinemaInfo['name'])) ?>
         </h2>
         <p class="text-muted small">Áp dụng cho tất cả các phòng chiếu tại rạp</p>
-    </div>
-
-    <div class="card border-0 shadow-sm p-4 mb-4 bg-white rounded-4">
-        <h5 class="oswald-font fw-bold text-uppercase mb-3" style="color: var(--beta-orange);">
-            <i class="bi bi-sunrise me-2"></i>0. Suất chiếu sớm (ưu đãi buổi sáng)
-        </h5>
-        <p class="mb-3">
-            Suất bắt đầu <strong>trước <?= $earlyHour ?>:00</strong> được đánh dấu
-            <span class="badge bg-warning text-dark">Suất sớm</span>
-            và áp dụng giá vé cơ bản giảm khoảng <strong><?= $earlyDiscount ?>%</strong> so với suất thường.
-        </p>
-        <div class="table-responsive">
-            <table class="table table-bordered align-middle text-center mb-0">
-                <thead class="table-warning">
-                    <tr>
-                        <th>Loại suất</th>
-                        <th>Khung giờ</th>
-                        <th>Giá vé cơ bản gợi ý</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><span class="badge bg-warning text-dark">Suất sớm</span></td>
-                        <td>Trước <?= $earlyHour ?>:00</td>
-                        <td class="fw-bold text-danger"><?= number_format($earlyBase) ?> VNĐ</td>
-                    </tr>
-                    <tr>
-                        <td><span class="badge bg-secondary">Suất thường</span></td>
-                        <td>Từ <?= $earlyHour ?>:00 trở đi</td>
-                        <td class="fw-bold"><?= number_format($defaultBase) ?> VNĐ</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        <p class="small text-muted mt-2 mb-0">
-            Giá cuối cùng trên ghế = giá cơ bản suất chiếu + phụ thu hạng ghế (VIP / Couple…). Có thể chỉnh trong Admin khi tạo suất.
-        </p>
     </div>
 
     <div class="card border-0 shadow-sm p-4 mb-4 bg-white rounded-4">

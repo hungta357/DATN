@@ -23,10 +23,21 @@
 
                     <?php
                     $groupedRows = [];
+                    $hasOwnHeldSeats = false;
                     foreach ($showSeats as $ss) {
                         $groupedRows[$ss['row_label']][] = $ss;
+                        if ($ss['status'] === 'held' && (int) $ss['held_by_user_id'] === (int) $user['id']) {
+                            $hasOwnHeldSeats = true;
+                        }
                     }
                     ?>
+
+                    <?php if ($hasOwnHeldSeats): ?>
+                        <div class="alert alert-info text-start">
+                            Bạn đang giữ ghế trong một đơn chưa thanh toán.
+                            <a href="?route=booking/my" class="alert-link">Mở đơn đặt vé</a> để tiếp tục thanh toán.
+                        </div>
+                    <?php endif; ?>
 
                     <?php if (empty($groupedRows)): ?>
                         <div class="alert alert-warning">Suất chiếu này chưa có sơ đồ ghế.</div>
@@ -37,7 +48,7 @@
                                 <?php foreach ($seatsInRow as $seat): ?>
                                     <?php
                                     $status = $seat['status'];
-                                    $isSelectable = ($status === 'available') || ($status === 'held' && (int) $seat['held_by_user_id'] === (int) $user['id']);
+                                    $isSelectable = $status === 'available';
                                     $cssClass = 'seat-available';
                                     if (!$isSelectable) {
                                         $cssClass = ($status === 'held') ? 'seat-held' : 'seat-booked';
@@ -49,9 +60,13 @@
                                     if (stripos($seat['seat_type_name'], 'Couple') !== false && !$isSelectable) {
                                         $cssClass .= ' seat-couple';
                                     }
+                                    $seatTitle = $seat['seat_code'] . ' (' . $seat['seat_type_name'] . ') - ' . number_format((float) $seat['price']) . 'đ';
+                                    if ($status === 'held' && (int) $seat['held_by_user_id'] === (int) $user['id']) {
+                                        $seatTitle .= ' - Đang được giữ trong đơn của bạn';
+                                    }
                                     ?>
                                     <label class="seat-box <?= $cssClass ?>"
-                                           title="<?= htmlspecialchars($seat['seat_code'] . ' (' . $seat['seat_type_name'] . ') - ' . number_format((float) $seat['price']) . 'đ') ?>">
+                                           title="<?= htmlspecialchars($seatTitle) ?>">
                                         <?php if ($isSelectable): ?>
                                             <input type="checkbox"
                                                    name="show_seat_ids[]"
@@ -112,8 +127,9 @@
                     </div>
                     <div class="card-body p-4">
                         <div class="d-flex gap-3 mb-3 pb-3 border-bottom">
-                            <img src="<?= htmlspecialchars($show['poster_path'] ?: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=300') ?>"
-                                 style="width:70px;height:100px;object-fit:cover;" class="rounded-3">
+                            <img src="<?= htmlspecialchars($show['poster_path'] ?: 'public/images/posters/dune-part-two.svg') ?>"
+                                 style="width:70px;height:100px;object-fit:cover;" class="rounded-3"
+                                 onerror="this.onerror=null;this.src='public/images/posters/dune-part-two.svg';">
                             <div>
                                 <h6 class="fw-bold mb-1" style="color: var(--beta-blue);"><?= htmlspecialchars($show['title_vi'] ?: $show['movie_title']) ?></h6>
                                 <span class="badge bg-warning text-dark mb-1"><?= htmlspecialchars($show['age_rating'] ?: 'P') ?></span>
@@ -126,14 +142,9 @@
                                 <span class="text-muted">Phòng chiếu:</span>
                                 <strong><?= htmlspecialchars($show['room_name']) ?></strong>
                             </div>
-                            <div class="d-flex justify-content-between mb-1 align-items-center">
+                            <div class="d-flex justify-content-between mb-1">
                                 <span class="text-muted">Suất chiếu:</span>
-                                <strong class="text-primary">
-                                    <?= date('H:i - d/m/Y', strtotime($show['start_time'])) ?>
-                                    <?php if (\App\Models\ShowModel::isEarlyShow($show)): ?>
-                                        <span class="badge bg-warning text-dark ms-1">Suất sớm</span>
-                                    <?php endif; ?>
-                                </strong>
+                                <strong class="text-primary"><?= date('H:i - d/m/Y', strtotime($show['start_time'])) ?></strong>
                             </div>
                             <div class="d-flex justify-content-between mb-1">
                                 <span class="text-muted">Ghế đã chọn:</span>

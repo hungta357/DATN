@@ -32,7 +32,7 @@ class EngagementModel extends BaseModel
 
     public function validateCoupon(string $code, float $orderAmount): array
     {
-        $stmt = $this->db->prepare("SELECT * FROM coupons WHERE code = :code AND status = 'active' LIMIT 1");
+        $stmt = $this->db->prepare("SELECT * FROM coupons WHERE code = :code AND status = 'active' LIMIT 1 FOR UPDATE");
         $stmt->execute(['code' => $code]);
         $coupon = $stmt->fetch();
 
@@ -126,6 +126,32 @@ class EngagementModel extends BaseModel
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['uid' => $userId]);
         return $stmt->fetchAll();
+    }
+
+    
+    public function createContactMessage(array $data): int
+    {
+        $stmt = $this->db->prepare("INSERT INTO contact_messages (user_id, full_name, email, phone, subject, message, status, created_at, updated_at) VALUES (:user_id, :full_name, :email, :phone, :subject, :message, 'new', NOW(), NOW())");
+        $stmt->execute([
+            'user_id' => $data['user_id'] ?: null,
+            'full_name' => $data['full_name'],
+            'email' => $data['email'],
+            'phone' => $data['phone'] ?: null,
+            'subject' => $data['subject'],
+            'message' => $data['message'],
+        ]);
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function getAllContactMessages(): array
+    {
+        return $this->db->query("SELECT * FROM contact_messages ORDER BY FIELD(status, 'new', 'processing', 'replied', 'closed'), created_at DESC")->fetchAll();
+    }
+
+    public function updateContactMessageStatus(int $id, string $status, string $reply = ''): bool
+    {
+        $stmt = $this->db->prepare("UPDATE contact_messages SET status = :status, admin_reply = :reply, replied_at = CASE WHEN :status2 IN ('replied','closed') THEN NOW() ELSE replied_at END, updated_at = NOW() WHERE id = :id");
+        return $stmt->execute(['status' => $status, 'status2' => $status, 'reply' => $reply ?: null, 'id' => $id]);
     }
 
     // --- 7.5 NOTIFICATIONS (THÔNG BÁO) ---

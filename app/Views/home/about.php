@@ -5,6 +5,7 @@
             </div>
             <div class="col-lg-7 p-4 p-md-5">
                 <span class="badge bg-primary mb-2 px-3 py-2 oswald-font">MÔ HÌNH 1 RẠP DUY NHẤT - NHIỀU PHÒNG CHIẾU</span>
+                <?php if (!empty($cinemaInfo['logo'])): ?><img src="<?= htmlspecialchars($cinemaInfo['logo']) ?>" alt="Logo <?= htmlspecialchars($cinemaInfo['name']) ?>" style="max-width:150px;max-height:75px;object-fit:contain" class="mb-3"><?php endif; ?>
                 <h2 class="oswald-font fw-bold text-uppercase mb-3" style="color: var(--beta-blue);">
                     GIỚI THIỆU RẠP <?= htmlspecialchars(strtoupper($cinemaInfo['name'])) ?>
                 </h2>
@@ -15,8 +16,13 @@
                 <div class="p-3 rounded-3 bg-light border mb-4">
                     <div class="mb-2"><i class="bi bi-geo-alt-fill text-danger me-2"></i><strong>Địa chỉ rạp:</strong> <?= htmlspecialchars($cinemaInfo['address']) ?></div>
                     <div class="mb-2"><i class="bi bi-telephone-fill text-primary me-2"></i><strong>Hotline đặt vé:</strong> <?= htmlspecialchars($cinemaInfo['phone'] ?: '1900 636807') ?></div>
-                    <div><i class="bi bi-envelope-fill text-warning me-2"></i><strong>Email liên hệ:</strong> <?= htmlspecialchars($cinemaInfo['email'] ?: 'cskh@betacinema.vn') ?></div>
+                    <div class="mb-2"><i class="bi bi-envelope-fill text-warning me-2"></i><strong>Email liên hệ:</strong> <?= htmlspecialchars($cinemaInfo['email'] ?: 'Chưa cập nhật') ?></div>
+                    <div class="mb-2"><i class="bi bi-clock-fill text-success me-2"></i><strong>Giờ hoạt động:</strong> <?= htmlspecialchars($cinemaInfo['opening_hours'] ?? 'Theo lịch chiếu') ?></div>
+                    <?php if (!empty($cinemaInfo['website'])): ?><div class="mb-2"><i class="bi bi-globe me-2"></i><strong>Website:</strong> <a href="<?= htmlspecialchars($cinemaInfo['website']) ?>" target="_blank" rel="noopener"> <?= htmlspecialchars($cinemaInfo['website']) ?></a></div><?php endif; ?>
                 </div>
+
+                <?php if (!empty($cinemaInfo['facilities'])): ?><div class="mb-4"><h6 class="fw-bold">TIỆN ÍCH TẠI RẠP</h6><p class="text-secondary mb-0"><?= nl2br(htmlspecialchars($cinemaInfo['facilities'])) ?></p></div><?php endif; ?>
+                <?php if (!empty($cinemaInfo['map_url'])): ?><a class="btn btn-outline-primary mb-4" href="<?= htmlspecialchars($cinemaInfo['map_url']) ?>" target="_blank" rel="noopener"><i class="bi bi-map me-1"></i> Xem bản đồ đường đi</a><?php endif; ?>
 
                 <h6 class="oswald-font fw-bold text-uppercase mb-2" style="color: var(--beta-orange);">Các Phòng Chiếu Đang Hoạt Động Tại Rạp:</h6>
                 <div class="d-flex flex-wrap gap-2">

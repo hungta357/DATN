@@ -82,6 +82,12 @@ switch ($route) {
     case 'about':
         (new HomeController())->about();
         break;
+    case 'contact':
+        (new HomeController())->contact();
+        break;
+    case 'contact/submit':
+        (new HomeController())->submitContact();
+        break;
     case 'movie/detail':
         (new HomeController())->movieDetail();
         break;
@@ -139,6 +145,9 @@ switch ($route) {
     case 'admin/cinema/save':
         (new AdminController())->saveCinemaInfo();
         break;
+    case 'admin/contact/update':
+        (new AdminController())->updateContactMessage();
+        break;
     case 'admin/user/status':
         (new AdminController())->updateUserStatus();
         break;
@@ -148,8 +157,17 @@ switch ($route) {
     case 'admin/movie/status':
         (new AdminController())->updateMovieStatus();
         break;
+    case 'admin/movie/delete':
+        (new AdminController())->deleteMovie();
+        break;
     case 'admin/room/save':
         (new AdminController())->saveRoom();
+        break;
+    case 'admin/room/update':
+        (new AdminController())->updateRoom();
+        break;
+    case 'admin/room/delete':
+        (new AdminController())->deleteRoom();
         break;
     case 'admin/room/generate-seats':
         (new AdminController())->generateSeats();
@@ -157,14 +175,29 @@ switch ($route) {
     case 'admin/show/save':
         (new AdminController())->saveShow();
         break;
+    case 'admin/show/update':
+        (new AdminController())->updateShow();
+        break;
+    case 'admin/show/delete':
+        (new AdminController())->deleteShow();
+        break;
+    case 'admin/show/auto-generate':
+        (new AdminController())->autoGenerateShows();
+        break;
     case 'admin/ticket/checkin':
         (new AdminController())->checkInTicket();
         break;
     case 'admin/concession/save':
         (new AdminController())->saveConcession();
         break;
+    case 'admin/concession/delete':
+        (new AdminController())->deleteConcession();
+        break;
     case 'admin/coupon/save':
         (new AdminController())->saveCoupon();
+        break;
+    case 'admin/coupon/delete':
+        (new AdminController())->deleteCoupon();
         break;
 
     default:
