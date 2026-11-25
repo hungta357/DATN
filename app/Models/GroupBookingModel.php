@@ -7,13 +7,43 @@ use App\Core\BaseModel;
 class GroupBookingModel extends BaseModel
 {
     protected string $table = 'group_bookings';
+    private static bool $schemaEnsured = false;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->ensureSchema();
+    }
+
+    private function ensureSchema(): void
+    {
+        if (self::$schemaEnsured) {
+            return;
+        }
+        self::$schemaEnsured = true;
+        try {
+            $sqlFile = dirname(__DIR__, 2) . '/database/group_booking_feature.sql';
+            if (is_file($sqlFile)) {
+                $sql = file_get_contents($sqlFile);
+                if ($sql !== false) {
+                    $this->db->exec($sql);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[GroupBookingModel::ensureSchema] ' . $e->getMessage());
+        }
+    }
 
     public function getUpcomingShows(): array
     {
+        $showModel = new ShowModel();
+        $showModel->getSellingShowsGroupedByMovie();
+
         return $this->db->query("
-            SELECT sh.id, sh.start_time, m.title AS movie_title, r.name AS room_name,
+            SELECT sh.id, sh.start_time, m.title AS movie_title, m.title_vi, r.name AS room_name,
                    (SELECT COUNT(*) FROM show_seats ss
-                    WHERE ss.show_id = sh.id AND ss.status = 'available') AS available_seats
+                    WHERE ss.show_id = sh.id
+                      AND (ss.status = 'available' OR (ss.status = 'held' AND ss.hold_expires_at <= NOW()))) AS available_seats
             FROM shows sh
             INNER JOIN movies m ON m.id = sh.movie_id
             INNER JOIN rooms r ON r.id = sh.room_id
@@ -157,6 +187,13 @@ class GroupBookingModel extends BaseModel
 
     public function getAvailableSeats(int $groupId): array
     {
+        $stmtShow = $this->db->prepare('SELECT show_id FROM group_bookings WHERE id = :id LIMIT 1');
+        $stmtShow->execute(['id' => $groupId]);
+        $showId = $stmtShow->fetchColumn();
+        if ($showId !== false) {
+            (new ShowModel())->releaseExpiredHeldSeats((int) $showId);
+        }
+
         $stmt = $this->db->prepare("
             SELECT ss.id, ss.price, s.seat_code, st.name AS seat_type_name
             FROM group_bookings gb
@@ -164,8 +201,11 @@ class GroupBookingModel extends BaseModel
             INNER JOIN seats s ON s.id = ss.seat_id
             INNER JOIN seat_types st ON st.id = s.seat_type_id
             LEFT JOIN group_seat_assignments ga ON ga.show_seat_id = ss.id
+            LEFT JOIN group_bookings gb_other ON gb_other.id = ga.group_id
+                AND gb_other.status IN ('open', 'pending_payment')
+                AND gb_other.expires_at > NOW()
             WHERE gb.id = :group_id AND gb.status = 'open' AND gb.expires_at > NOW()
-              AND ga.id IS NULL
+              AND gb_other.id IS NULL
             ORDER BY s.row_label, s.seat_number
         ");
         $stmt->execute(['group_id' => $groupId]);
@@ -240,6 +280,29 @@ class GroupBookingModel extends BaseModel
             $stmtSeat->execute(['seat_id' => $showSeatId, 'show_id' => $group['show_id']]);
             if (!$stmtSeat->fetchColumn()) {
                 throw new \InvalidArgumentException('Ghế không còn trống trong suất chiếu này.');
+            }
+
+            // Dọn các bản ghi gán ghế cũ của những nhóm đã hết hạn để tránh lỗi UNIQUE KEY uq_group_assigned_seat
+            $this->db->prepare("
+                DELETE ga FROM group_seat_assignments ga
+                INNER JOIN group_bookings gb_old ON gb_old.id = ga.group_id
+                WHERE ga.show_seat_id = :seat_id
+                  AND (gb_old.status = 'expired' OR gb_old.expires_at <= NOW())
+            ")->execute(['seat_id' => $showSeatId]);
+
+            $stmtTakenByActiveGroup = $this->db->prepare("
+                SELECT ga.member_id
+                FROM group_seat_assignments ga
+                INNER JOIN group_bookings gb_act ON gb_act.id = ga.group_id
+                WHERE ga.show_seat_id = :seat_id
+                  AND gb_act.status IN ('open', 'pending_payment')
+                  AND gb_act.expires_at > NOW()
+                LIMIT 1
+            ");
+            $stmtTakenByActiveGroup->execute(['seat_id' => $showSeatId]);
+            $takenMemberId = $stmtTakenByActiveGroup->fetchColumn();
+            if ($takenMemberId !== false && (int) $takenMemberId !== (int) $memberId) {
+                throw new \InvalidArgumentException('Ghế này đã được một thành viên khác chọn.');
             }
 
             $this->db->prepare('DELETE FROM group_seat_assignments WHERE member_id = :member_id')
@@ -320,6 +383,16 @@ class GroupBookingModel extends BaseModel
             }
             return $booking;
         } catch (\Throwable $e) {
+            if (!empty($booking['id'])) {
+                $this->db->prepare("UPDATE bookings SET status = 'expired', updated_at = NOW() WHERE id = :id AND status = 'pending'")
+                    ->execute(['id' => $booking['id']]);
+                $this->db->prepare("
+                    UPDATE show_seats ss
+                    INNER JOIN booking_details bd ON bd.show_seat_id = ss.id
+                    SET ss.status = 'available', ss.held_by_user_id = NULL, ss.hold_expires_at = NULL, ss.updated_at = NOW()
+                    WHERE bd.booking_id = :booking_id AND ss.status = 'held'
+                ")->execute(['booking_id' => $booking['id']]);
+            }
             $this->db->prepare("
                 UPDATE group_bookings
                 SET status = 'open', expires_at = DATE_ADD(NOW(), INTERVAL 20 MINUTE), updated_at = NOW()
@@ -355,6 +428,7 @@ class GroupBookingModel extends BaseModel
     public function payShare(int $groupId, int $userId): void
     {
         $this->expireGroupIfNeeded($groupId);
+        (new PaymentWalletModel())->getOrCreateWallet($userId);
         $this->db->beginTransaction();
         try {
             $stmtGroup = $this->db->prepare('SELECT *, expires_at <= NOW() AS is_expired FROM group_bookings WHERE id = :id FOR UPDATE');
@@ -531,13 +605,18 @@ class GroupBookingModel extends BaseModel
 
     private function expireGroupIfNeeded(int $groupId): void
     {
-        $this->db->beginTransaction();
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
+        }
         try {
             $stmt = $this->db->prepare('SELECT *, expires_at <= NOW() AS is_expired FROM group_bookings WHERE id = :id FOR UPDATE');
             $stmt->execute(['id' => $groupId]);
             $group = $stmt->fetch();
             if (!$group || !in_array($group['status'], ['open', 'pending_payment'], true) || !(bool) $group['is_expired']) {
-                $this->db->commit();
+                if ($ownsTransaction) {
+                    $this->db->commit();
+                }
                 return;
             }
 
@@ -549,7 +628,9 @@ class GroupBookingModel extends BaseModel
                         ->execute(['id' => $groupId]);
                     $this->db->prepare("UPDATE group_members SET status = 'paid', updated_at = NOW() WHERE group_id = :id")
                         ->execute(['id' => $groupId]);
-                    $this->db->commit();
+                    if ($ownsTransaction) {
+                        $this->db->commit();
+                    }
                     return;
                 }
                 if ($group['payment_mode'] === 'split') {
@@ -567,7 +648,10 @@ class GroupBookingModel extends BaseModel
                         $stmtWallet->execute(['user_id' => $contribution['user_id']]);
                         $wallet = $stmtWallet->fetch();
                         if (!$wallet) {
-                            throw new \RuntimeException('Không tìm thấy ví cần hoàn tiền cho giao dịch nhóm.');
+                            $this->db->prepare("INSERT INTO wallets (user_id, balance, currency, created_at, updated_at) VALUES (:uid, 0, 'VND', NOW(), NOW())")
+                                ->execute(['uid' => $contribution['user_id']]);
+                            $stmtWallet->execute(['user_id' => $contribution['user_id']]);
+                            $wallet = $stmtWallet->fetch();
                         }
                         $balanceAfter = round((float) $wallet['balance'] + (float) $contribution['amount'], 2);
                         $this->db->prepare('UPDATE wallets SET balance = :balance, updated_at = NOW() WHERE id = :id')
@@ -600,11 +684,16 @@ class GroupBookingModel extends BaseModel
                     WHERE bd.booking_id = :booking_id AND ss.status = 'held'
                 ")->execute(['booking_id' => $group['booking_id']]);
             }
+            // Giải phóng các bản ghi giữ ghế tạm của nhóm đã hết hạn để các nhóm khác có thể chọn lại ghế đó
+            $this->db->prepare("DELETE FROM group_seat_assignments WHERE group_id = :id")
+                ->execute(['id' => $groupId]);
             $this->db->prepare("UPDATE group_bookings SET status = 'expired', updated_at = NOW() WHERE id = :id")
                 ->execute(['id' => $groupId]);
-            $this->db->commit();
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
         } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) {
+            if ($ownsTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
             throw $e;

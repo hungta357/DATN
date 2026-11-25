@@ -607,7 +607,9 @@ $nowShowingMoviesCount = count(array_filter($movies ?? [], static fn(array $m): 
                                 $defaultStartVal = date('Y-m-d\TH:i', strtotime('+2 hours'));
                                 if (!empty($editingShow['start_time'])) {
                                     $editTs = strtotime($editingShow['start_time']);
-                                    $defaultStartVal = date('Y-m-d\TH:i', $editTs > $nowTs ? $editTs : strtotime('+2 hours'));
+                                    if ($editTs !== false) {
+                                        $defaultStartVal = date('Y-m-d\TH:i', $editTs);
+                                    }
                                 }
                                 ?>
                                 <input type="datetime-local" name="start_time" value="<?= $defaultStartVal ?>" class="form-control form-control-sm" required>
@@ -620,7 +622,7 @@ $nowShowingMoviesCount = count(array_filter($movies ?? [], static fn(array $m): 
                                 <div class="mb-3">
                                     <label class="form-label small">Trạng thái suất chiếu</label>
                                     <select name="status" class="form-select form-select-sm">
-                                        <?php foreach (['selling' => 'Đang mở bán (selling)', 'scheduled' => 'Lên lịch (scheduled)', 'closed' => 'Đóng bán (closed)', 'cancelled' => 'Đã hủy (cancelled)'] as $st => $lbl): ?>
+                                        <?php foreach (['selling' => 'Đang mở bán (selling)', 'scheduled' => 'Lên lịch (scheduled)', 'completed' => 'Đã đóng / Hoàn tất (completed)', 'cancelled' => 'Đã hủy (cancelled)'] as $st => $lbl): ?>
                                             <option value="<?= $st ?>" <?= ($editingShow['status'] ?? '') === $st ? 'selected' : '' ?>><?= $lbl ?></option>
                                         <?php endforeach; ?>
                                     </select>
@@ -1099,7 +1101,7 @@ $nowShowingMoviesCount = count(array_filter($movies ?? [], static fn(array $m): 
                                 </form>
                             <?php endif; ?>
 
-                            <?php if (empty($isAdmin) && (int) $report['assigned_to'] === (int) ($_SESSION['user']['id'] ?? 0) && in_array($report['status'], ['assigned', 'in_progress'], true)): ?>
+                            <?php if (((!empty($isAdmin) && in_array($report['status'], ['reported', 'assigned', 'in_progress'], true)) || ((int) $report['assigned_to'] === (int) ($_SESSION['user']['id'] ?? 0) && in_array($report['status'], ['assigned', 'in_progress'], true)))): ?>
                                 <form method="POST" action="?route=admin/maintenance/progress" enctype="multipart/form-data" class="row g-2 border-top pt-3 mb-3">
                                     <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                                     <input type="hidden" name="report_id" value="<?= (int) $report['id'] ?>">

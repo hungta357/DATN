@@ -64,7 +64,8 @@ class MaintenanceController extends BaseController
 
     public function updateProgress(): void
     {
-        $user = $this->requireRole(['staff']);
+        $user = $this->requireRole(['admin', 'staff']);
+        $isAdmin = in_array('admin', $user['roles'] ?? [], true);
         $attachmentPath = null;
         try {
             $reportId = filter_var($_POST['report_id'] ?? null, FILTER_VALIDATE_INT);
@@ -79,7 +80,8 @@ class MaintenanceController extends BaseController
                 (int) $user['id'],
                 $submit,
                 $this->requiredText($_POST['note'] ?? '', 'Vui lòng nhập nội dung cập nhật.'),
-                $attachment
+                $attachment,
+                $isAdmin
             );
             $this->setFlash('success', $submit ? 'Đã gửi kết quả để Admin xác nhận.' : 'Đã cập nhật tiến độ xử lý.');
         } catch (\Throwable $e) {

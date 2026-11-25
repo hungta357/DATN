@@ -7,10 +7,11 @@ use App\Models\BookingModel;
 use App\Models\EngagementModel;
 use App\Models\MovieModel;
 use App\Models\ShowModel;
+use App\Models\TicketSecurityModel;
 use App\Models\UserModel;
 
 /**
- * REST API Controller kết nối Backend PHP với Frontend React
+ * REST API Controller kết nối Backend PHP với Frontend React & JS
  */
 class ApiController extends BaseController
 {
@@ -40,12 +41,15 @@ class ApiController extends BaseController
 
     /**
      * POST ?route=api/coupon/check
-     * Kiểm tra mã giảm giá realtime trên giao diện chọn ghế React
+     * Kiểm tra mã giảm giá realtime trên giao diện chọn ghế
      */
     public function checkCoupon(): void
     {
-        $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
-        $code = strtoupper(trim($input['code'] ?? ''));
+        $input = json_decode(file_get_contents('php://input') ?: '', true);
+        if (!is_array($input)) {
+            $input = $_POST;
+        }
+        $code = strtoupper(trim((string) ($input['code'] ?? '')));
         $orderAmount = (float) ($input['order_amount'] ?? 0);
 
         if ($code === '') {
@@ -73,7 +77,7 @@ class ApiController extends BaseController
 
     /**
      * GET ?route=api/admin/stats
-     * Trả về dữ liệu thống kê chi tiết (khách xem, doanh thu, phim, phòng, thanh toán...) cho React Admin Dashboard
+     * Trả về dữ liệu thống kê chi tiết (khách xem, doanh thu, phim, phòng, thanh toán...) cho Admin Dashboard
      */
     public function adminStats(): void
     {
@@ -92,7 +96,7 @@ class ApiController extends BaseController
 
     /**
      * POST ?route=api/admin/checkin
-     * Soát vé QR realtime bằng React trong trang Admin
+     * Soát vé QR realtime trong trang Admin
      */
     public function adminCheckIn(): void
     {
@@ -100,20 +104,27 @@ class ApiController extends BaseController
             $this->json(['success' => false, 'message' => 'Không có quyền thực hiện.'], 403);
         }
 
-        $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
-        $ticketCode = trim($input['ticket_code'] ?? '');
+        $input = json_decode(file_get_contents('php://input') ?: '', true);
+        if (!is_array($input)) {
+            $input = $_POST;
+        }
+        $ticketCode = trim((string) ($input['ticket_code'] ?? ''));
 
         if ($ticketCode === '') {
             $this->json(['success' => false, 'message' => 'Vui lòng nhập mã vé QR.'], 400);
         }
 
         try {
-            $bookingModel = new BookingModel();
-            $ticket = $bookingModel->checkInTicketByCode($ticketCode);
+            $staffId = (int) ($_SESSION['user']['id'] ?? 0);
+            $ticket = (new TicketSecurityModel())->checkInTicketByCode($ticketCode, $staffId);
+            $message = "Soát vé thành công! Mã vé: {$ticket['ticket_code']} | Phim: {$ticket['movie_title']} | Phòng: {$ticket['room_name']} | Ghế: {$ticket['seat_code']}";
+            if (!empty($ticket['scan_anomaly'])) {
+                $message .= ' Cảnh báo: ' . $ticket['scan_anomaly'] . '. Vui lòng kiểm tra thông tin suất chiếu.';
+            }
             $this->json([
                 'success' => true,
                 'ticket' => $ticket,
-                'message' => "Soát vé thành công! Mã vé: {$ticket['ticket_code']} | Phim: {$ticket['movie_title']} | Phòng: {$ticket['room_name']} | Ghế: {$ticket['seat_code']}",
+                'message' => $message,
             ]);
         } catch (\Throwable $e) {
             $this->json([
@@ -126,7 +137,6 @@ class ApiController extends BaseController
     /**
      * GET ?route=frontend/js&file=...
      * Phục vụ các file React Component tách riêng trong thư mục frontend/react/
-     * Đảm bảo không bao giờ lỗi đường dẫn 404 dù chạy từ thư mục gốc hay /public
      */
     public function serveFrontendJs(): void
     {
@@ -135,7 +145,7 @@ class ApiController extends BaseController
             'CustomerMovieApp.js',
             'SeatCouponApp.js',
         ];
-        $file = basename($_GET['file'] ?? '');
+        $file = basename((string) ($_GET['file'] ?? ''));
         if (!in_array($file, $allowedFiles, true)) {
             http_response_code(404);
             header('Content-Type: application/javascript; charset=utf-8');
@@ -157,4 +167,3 @@ class ApiController extends BaseController
         exit;
     }
 }
-

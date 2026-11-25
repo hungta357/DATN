@@ -1,7 +1,10 @@
 <div class="container py-4">
-    <h3 class="oswald-font fw-bold text-uppercase mb-3" style="color: var(--beta-blue);">
-        <i class="bi bi-ticket-perforated text-danger me-2"></i>Hành Trình Điện Ảnh & Vé Đã Đặt
-    </h3>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h3 class="oswald-font fw-bold text-uppercase mb-0" style="color: var(--beta-blue);">
+            <i class="bi bi-ticket-perforated text-danger me-2"></i>Hành Trình Điện Ảnh & Vé Đã Đặt
+        </h3>
+        <a href="?route=booking/group" class="btn btn-beta-buy"><i class="bi bi-people me-1"></i>Đặt vé nhóm</a>
+    </div>
 
     <?php if (empty($bookings)): ?>
         <div class="alert alert-info">Bạn chưa có đơn đặt vé nào tại rạp.</div>
@@ -30,14 +33,19 @@
                                 </td>
                                 <td class="fw-bold text-danger"><?= number_format((float) $b['total_amount']) ?>đ</td>
                                 <td>
-                                    <span class="badge <?= $b['status'] === 'confirmed' ? 'bg-success' : 'bg-warning text-dark' ?>">
+                                    <span class="badge <?= $b['status'] === 'confirmed' ? 'bg-success' : ($b['status'] === 'pending' ? 'bg-warning text-dark' : 'bg-secondary') ?>">
                                         <?= htmlspecialchars($b['status']) ?>
                                     </span>
                                 </td>
                                 <td>
                                     <a href="?route=booking/checkout&id=<?= (int) $b['id'] ?>" class="btn btn-sm btn-beta-buy">
-                                        <?= $b['status'] === 'pending' ? 'Thanh toán ngay' : 'Xem Vé QR' ?>
+                                        <?= $b['status'] === 'pending' ? 'Thanh toán ngay' : ($b['status'] === 'confirmed' ? 'Xem Vé QR' : 'Xem chi tiết') ?>
                                     </a>
+                                    <?php if (in_array($b['status'], ['confirmed', 'cancelled', 'refunded'], true)): ?>
+                                        <a href="?route=incidents&amp;booking_id=<?= (int) $b['id'] ?>" class="btn btn-sm btn-outline-primary mt-1">
+                                            <i class="bi bi-chat-square-text me-1"></i>Khiếu nại / hỗ trợ
+                                        </a>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

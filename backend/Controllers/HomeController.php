@@ -23,22 +23,23 @@ class HomeController extends BaseController
             $status = null;
         }
         $keyword = trim($_GET['q'] ?? '');
-
-        $movies = $movieModel->getMovies($status, $keyword ?: null);
-        $allMovies = $movieModel->getMovies(null, null);
+        $genreId = (int) ($_GET['genre_id'] ?? 0);
+        $genreId = $genreId > 0 ? $genreId : null;
         $genres = $movieModel->getAllGenres();
+
+        $movies = $movieModel->getMovies($status, $keyword ?: null, $genreId);
         $cinemaInfo = $userModel->getCinemaInfo();
         $showsByMovie = $showModel->getSellingShowsGroupedByMovie();
 
         $this->view('home/index', [
             'pageTitle' => $cinemaInfo['name'] . ' - Hệ thống rạp chiếu phim',
             'movies' => $movies,
-            'allMovies' => $allMovies,
-            'genres' => $genres,
             'showsByMovie' => $showsByMovie,
             'cinemaInfo' => $cinemaInfo,
             'currentStatus' => $status ?? 'all',
             'keyword' => $keyword,
+            'genres' => $genres,
+            'selectedGenreId' => $genreId,
         ]);
     }
 
@@ -94,7 +95,7 @@ class HomeController extends BaseController
         $userModel = new UserModel();
 
         $cinemaInfo = $userModel->getCinemaInfo();
-        $coupons = $engagementModel->getAllCoupons();
+        $coupons = $engagementModel->getActiveCoupons();
         $concessions = $engagementModel->getActiveConcessions();
 
         $this->view('home/promotions', [

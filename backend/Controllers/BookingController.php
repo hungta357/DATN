@@ -5,28 +5,41 @@ namespace App\Controllers;
 use App\Core\BaseController;
 use App\Models\BookingModel;
 use App\Models\EngagementModel;
+use App\Models\GroupBookingModel;
 use App\Models\PaymentWalletModel;
 use App\Models\ShowModel;
+use PHPMailer\PHPMailer\PHPMailer;
+
+// Nếu dùng Composer thì bật dòng này:
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 class BookingController extends BaseController
 {
     public function selectSeats(): void
     {
         $user = $this->requireAuth();
-        $showId = (int) ($_GET['show_id'] ?? 0);
+        $showIdInput = $_GET['show_id'] ?? null;
+        $showId = is_string($showIdInput) || is_int($showIdInput)
+            ? filter_var($showIdInput, FILTER_VALIDATE_INT)
+            : false;
+        $showId = $showId === false ? 0 : (int) $showId;
 
         $showModel = new ShowModel();
         $engagementModel = new EngagementModel();
 
         $show = $showModel->findShowWithDetails($showId);
-        if (!$show) {
-            $this->setFlash('danger', 'Suất chiếu không tồn tại.');
+        if (
+            !$show ||
+            !in_array($show['status'], ['scheduled', 'selling'], true) ||
+            strtotime($show['start_time']) <= time()
+        ) {
+            $this->setFlash('danger', 'Suất chiếu không tồn tại, đã bắt đầu hoặc đã đóng bán.');
             $this->redirect('?route=home');
         }
 
         $showSeats = $showModel->getShowSeats($showId);
         $concessions = $engagementModel->getActiveConcessions();
-        $coupons = $engagementModel->getAllCoupons();
+        $coupons = $engagementModel->getActiveCoupons();
 
         $this->view('booking/select_seats', [
             'pageTitle' => 'Chọn ghế - ' . $show['movie_title'],
@@ -45,11 +58,19 @@ class BookingController extends BaseController
             $this->redirect('?route=home');
         }
 
-        $showId = (int) ($_POST['show_id'] ?? 0);
+        $showIdInput = $_POST['show_id'] ?? null;
+        $showId = is_string($showIdInput) || is_int($showIdInput)
+            ? filter_var($showIdInput, FILTER_VALIDATE_INT)
+            : false;
+        $showId = $showId === false ? 0 : (int) $showId;
         $showSeatIds = $_POST['show_seat_ids'] ?? [];
+        $showSeatIds = is_array($showSeatIds) ? $showSeatIds : [];
         $concessions = $_POST['concessions'] ?? [];
-        $couponCode = trim($_POST['coupon_code'] ?? '');
-        $note = trim($_POST['note'] ?? '');
+        $concessions = is_array($concessions) ? $concessions : [];
+        $couponInput = $_POST['coupon_code'] ?? '';
+        $noteInput = $_POST['note'] ?? '';
+        $couponCode = is_string($couponInput) ? trim($couponInput) : '';
+        $note = is_string($noteInput) ? trim($noteInput) : '';
 
         try {
             $bookingModel = new BookingModel();
@@ -73,19 +94,41 @@ class BookingController extends BaseController
     public function checkout(): void
     {
         $user = $this->requireAuth();
-        $bookingId = (int) ($_GET['id'] ?? 0);
+        $bookingIdInput = $_GET['id'] ?? null;
+        $bookingId = is_string($bookingIdInput) || is_int($bookingIdInput)
+            ? filter_var($bookingIdInput, FILTER_VALIDATE_INT)
+            : false;
+        $bookingId = $bookingId === false ? 0 : (int) $bookingId;
 
         $bookingModel = new BookingModel();
         $paymentWalletModel = new PaymentWalletModel();
 
         $booking = $bookingModel->findBookingFull($bookingId);
-        if (!$booking || (int) $booking['user_id'] !== (int) $user['id']) {
+        $groupModel = new GroupBookingModel();
+        $group = $booking ? $groupModel->getGroupForBooking($bookingId) : null;
+        $isGroupMember = $group && $groupModel->isGroupMember((int) $group['id'], (int) $user['id']);
+        if (!$booking || ((int) $booking['user_id'] !== (int) $user['id'] && !$isGroupMember)) {
             $this->setFlash('danger', 'Không tìm thấy đơn đặt vé.');
             $this->redirect('?route=booking/my');
         }
+        if ($group && $group['payment_mode'] === 'split' && $group['status'] === 'pending_payment') {
+            $this->redirect('?route=booking/group&code=' . urlencode($group['invite_code']));
+        }
+        if ($group && $group['status'] !== 'paid' && (int) $booking['user_id'] !== (int) $user['id']) {
+            $this->redirect('?route=booking/group&code=' . urlencode($group['invite_code']));
+        }
 
-        $paymentMethods = $paymentWalletModel->getActivePaymentMethods();
-        $wallet = $paymentWalletModel->getOrCreateWallet((int) $user['id']);
+        if ($booking['status'] === 'pending') {
+            (new ShowModel())->releaseExpiredHeldSeats((int) $booking['show_id']);
+            $booking = $bookingModel->findBookingFull($bookingId);
+        }
+
+        $paymentMethods = $booking['status'] === 'pending'
+            ? $paymentWalletModel->getActivePaymentMethods()
+            : [];
+        $wallet = $booking['status'] === 'pending'
+            ? $paymentWalletModel->getOrCreateWallet((int) $user['id'])
+            : null;
 
         $this->view('booking/checkout', [
             'pageTitle' => 'Thanh toán & Vé #' . $booking['booking_code'],
@@ -102,8 +145,16 @@ class BookingController extends BaseController
             $this->redirect('?route=booking/my');
         }
 
-        $bookingId = (int) ($_POST['booking_id'] ?? 0);
-        $paymentMethodId = (int) ($_POST['payment_method_id'] ?? 1);
+        $bookingIdInput = $_POST['booking_id'] ?? null;
+        $bookingId = is_string($bookingIdInput) || is_int($bookingIdInput)
+            ? filter_var($bookingIdInput, FILTER_VALIDATE_INT)
+            : false;
+        $bookingId = $bookingId === false ? 0 : (int) $bookingId;
+        $paymentMethodInput = $_POST['payment_method_id'] ?? null;
+        $paymentMethodId = is_string($paymentMethodInput) || is_int($paymentMethodInput)
+            ? filter_var($paymentMethodInput, FILTER_VALIDATE_INT)
+            : false;
+        $paymentMethodId = $paymentMethodId === false ? 0 : (int) $paymentMethodId;
 
         $bookingModel = new BookingModel();
         $paymentWalletModel = new PaymentWalletModel();
@@ -112,6 +163,10 @@ class BookingController extends BaseController
         if (!$booking || (int) $booking['user_id'] !== (int) $user['id']) {
             $this->setFlash('danger', 'Đơn hàng không hợp lệ.');
             $this->redirect('?route=booking/my');
+        }
+        $group = (new GroupBookingModel())->getGroupForBooking($bookingId);
+        if ($group && $group['payment_mode'] === 'split' && $group['status'] === 'pending_payment') {
+            $this->redirect('?route=booking/group&code=' . urlencode($group['invite_code']));
         }
 
         $methods = $paymentWalletModel->getActivePaymentMethods();
@@ -124,8 +179,76 @@ class BookingController extends BaseController
         }
 
         try {
-            $bookingModel->confirmBookingAndIssueTickets($bookingId, $paymentMethodId, $selectedCode);
-            $this->setFlash('success', 'Thanh toán thành công! Vé điện tử và mã QR đã được phát hành.');
+            // 1. Xác nhận đơn hàng và phát hành vé
+            $bookingModel->confirmBookingAndIssueTickets($bookingId, $paymentMethodId);
+            (new GroupBookingModel())->markSharedGroupPaid($bookingId);
+
+            // 2. Lấy lại toàn bộ thông tin mới nhất sau khi đã phát hành vé để đổ vào email
+            $updatedBooking = $bookingModel->findBookingFull($bookingId);
+
+            // Chỉ gửi email khi SMTP được cấu hình trong môi trường; không lưu thông tin
+            // đăng nhập email trong source và không làm thất bại giao dịch nếu gửi lỗi.
+            $mailSent = false;
+            $smtpHost = getenv('MAIL_SMTP_HOST') ?: '';
+            $smtpUsername = getenv('MAIL_SMTP_USERNAME') ?: '';
+            $smtpPassword = getenv('MAIL_SMTP_PASSWORD') ?: '';
+            $fromEmail = getenv('MAIL_FROM_EMAIL') ?: $smtpUsername;
+            if ($smtpHost !== '' && $smtpUsername !== '' && $smtpPassword !== '' && filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+                try {
+                    $mail = new PHPMailer(true);
+                    $mail->isSMTP();
+                    $mail->Host = $smtpHost;
+                    $mail->SMTPAuth = true;
+                    $mail->Username = $smtpUsername;
+                    $mail->Password = $smtpPassword;
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Port = (int) (getenv('MAIL_SMTP_PORT') ?: 587);
+                    $mail->Timeout = 4;
+                    $mail->CharSet = 'UTF-8';
+
+                    $customerName = $user['name'] ?? $user['full_name'] ?? 'Khách hàng';
+                    $mail->setFrom($fromEmail, getenv('MAIL_FROM_NAME') ?: 'CineNow Cinema');
+                    $mail->addAddress($user['email'], $customerName);
+
+                    $orderCode = (string) ($updatedBooking['booking_code'] ?? '');
+                    $movieTitle = (string) ($updatedBooking['movie_title'] ?? '');
+                    $roomName = (string) ($updatedBooking['room_name'] ?? '');
+                    $showTime = (string) ($updatedBooking['start_time'] ?? '');
+                    $ticketCode = $orderCode;
+                    $seatNames = [];
+                    foreach ($updatedBooking['seats'] ?? [] as $ticket) {
+                        $seatNames[] = (string) ($ticket['seat_code'] ?? $ticket['seat_number'] ?? '');
+                        $ticketCode = (string) ($ticket['ticket_code'] ?? $ticketCode);
+                    }
+                    $seatsText = $seatNames ? implode(', ', $seatNames) : 'Không có thông tin';
+                    $totalAmount = number_format((float) ($updatedBooking['total_amount'] ?? 0), 0, ',', '.') . ' đ';
+                    $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+                    $mail->isHTML(true);
+                    $mail->Subject = '[CineNow] Xác nhận đặt vé thành công - Đơn hàng #' . $orderCode;
+                    $mail->Body = '<h2>Vé điện tử CineNow</h2>'
+                        . '<p>Xin chào ' . $escape((string) $customerName) . ', thanh toán của bạn đã được xác nhận.</p>'
+                        . '<p><strong>Mã đơn:</strong> ' . $escape($orderCode) . '<br>'
+                        . '<strong>Phim:</strong> ' . $escape($movieTitle) . '<br>'
+                        . '<strong>Phòng:</strong> ' . $escape($roomName) . '<br>'
+                        . '<strong>Suất chiếu:</strong> ' . $escape($showTime) . '<br>'
+                        . '<strong>Ghế:</strong> ' . $escape($seatsText) . '<br>'
+                        . '<strong>Tổng thanh toán:</strong> ' . $escape($totalAmount) . '</p>'
+                        . '<p>Mã vé: <strong>' . $escape($ticketCode) . '</strong></p>';
+                    $mail->AltBody = "Mã đơn: {$orderCode}\nPhim: {$movieTitle}\nPhòng: {$roomName}\nSuất chiếu: {$showTime}\nGhế: {$seatsText}\nTổng thanh toán: {$totalAmount}\nMã vé: {$ticketCode}";
+                    $mail->send();
+                    $mailSent = true;
+                } catch (\Throwable $mailError) {
+                    error_log('[CineNow mail] ' . $mailError->getMessage());
+                }
+            }
+
+            $this->setFlash(
+                'success',
+                $mailSent
+                    ? 'Thanh toán thành công! Vé điện tử và mã QR đã được phát hành, email xác nhận đã được gửi.'
+                    : 'Thanh toán thành công! Vé điện tử và mã QR đã được phát hành.'
+            );
             $this->redirect('?route=booking/checkout&id=' . $bookingId);
         } catch (\Throwable $e) {
             $this->setFlash('danger', 'Lỗi thanh toán: ' . $e->getMessage());
@@ -145,4 +268,3 @@ class BookingController extends BaseController
         ]);
     }
 }
-

@@ -13,7 +13,7 @@ class MovieModel extends BaseModel
 {
     protected string $table = 'movies';
 
-    public function getMovies(?string $status = null, ?string $keyword = null): array
+    public function getMovies(?string $status = null, ?string $keyword = null, ?int $genreId = null): array
     {
         $where = [];
         $params = [];
@@ -29,6 +29,11 @@ class MovieModel extends BaseModel
             $where[] = "(m.title LIKE :kw1 OR m.title_vi LIKE :kw2)";
             $params['kw1'] = "%{$keyword}%";
             $params['kw2'] = "%{$keyword}%";
+        }
+
+        if ($genreId !== null && $genreId > 0) {
+            $where[] = 'EXISTS (SELECT 1 FROM movie_genres filter_mg WHERE filter_mg.movie_id = m.id AND filter_mg.genre_id = :genre_id)';
+            $params['genre_id'] = $genreId;
         }
 
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -66,6 +71,19 @@ class MovieModel extends BaseModel
         return $this->db->query("SELECT * FROM genres ORDER BY name ASC")->fetchAll();
     }
 
+    public function getAllMoviesWithGenres(): array
+    {
+        $sql = "SELECT m.*,
+                       GROUP_CONCAT(g.name SEPARATOR ', ') AS genre_names,
+                       GROUP_CONCAT(g.id SEPARATOR ',') AS genre_ids_csv
+                FROM movies m
+                LEFT JOIN movie_genres mg ON mg.movie_id = m.id
+                LEFT JOIN genres g ON g.id = mg.genre_id
+                GROUP BY m.id
+                ORDER BY m.id DESC";
+        return $this->db->query($sql)->fetchAll();
+    }
+
     public function syncGenres(int $movieId, array $genreIds): void
     {
         $stmtDel = $this->db->prepare("DELETE FROM movie_genres WHERE movie_id = :mid");
@@ -74,6 +92,42 @@ class MovieModel extends BaseModel
         $stmtIns = $this->db->prepare("INSERT IGNORE INTO movie_genres (movie_id, genre_id) VALUES (:mid, :gid)");
         foreach ($genreIds as $gid) {
             $stmtIns->execute(['mid' => $movieId, 'gid' => (int) $gid]);
+        }
+    }
+
+    public function deleteOrHideMovie(int $movieId): string
+    {
+        $stmtBookings = $this->db->prepare("
+            SELECT COUNT(*)
+            FROM bookings b
+            INNER JOIN shows sh ON sh.id = b.show_id
+            WHERE sh.movie_id = :mid AND b.status IN ('confirmed', 'pending')
+        ");
+        $stmtBookings->execute(['mid' => $movieId]);
+        $hasActiveBookings = (int) $stmtBookings->fetchColumn() > 0;
+
+        if ($hasActiveBookings) {
+            $this->update($movieId, ['status' => 'hidden']);
+            return 'hidden';
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $this->db->prepare("DELETE FROM bookings WHERE show_id IN (SELECT id FROM shows WHERE movie_id = :mid)")->execute(['mid' => $movieId]);
+            $this->db->prepare("DELETE FROM show_seats WHERE show_id IN (SELECT id FROM shows WHERE movie_id = :mid)")->execute(['mid' => $movieId]);
+            $this->db->prepare("DELETE FROM shows WHERE movie_id = :mid")->execute(['mid' => $movieId]);
+            $this->db->prepare("DELETE FROM movie_genres WHERE movie_id = :mid")->execute(['mid' => $movieId]);
+            $this->db->prepare("DELETE FROM reviews WHERE movie_id = :mid")->execute(['mid' => $movieId]);
+            $this->db->prepare("DELETE FROM wishlists WHERE movie_id = :mid")->execute(['mid' => $movieId]);
+            $this->db->prepare("DELETE FROM movies WHERE id = :mid")->execute(['mid' => $movieId]);
+            $this->db->commit();
+            return 'deleted';
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->update($movieId, ['status' => 'hidden']);
+            return 'hidden';
         }
     }
 }

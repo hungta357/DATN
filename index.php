@@ -17,9 +17,24 @@ if (empty($_SESSION['_token'])) {
 }
 
 // Bảo vệ mọi biểu mẫu POST khỏi CSRF. Các form trong Views đều có trường _token.
+// Hỗ trợ cả JSON payload hoặc header X-CSRF-TOKEN cho các API call.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $submittedToken = $_POST['_token'] ?? '';
-    if (!is_string($submittedToken) || !hash_equals($_SESSION['_token'], $submittedToken)) {
+    $routeCheck = $_GET['route'] ?? '';
+    $submittedToken = $_POST['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if ($submittedToken === '' && str_starts_with((string) ($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')) {
+        $jsonInput = json_decode(file_get_contents('php://input') ?: '', true);
+        if (is_array($jsonInput) && isset($jsonInput['_token'])) {
+            $submittedToken = $jsonInput['_token'];
+        }
+    }
+    $isExemptApi = in_array($routeCheck, ['api/coupon/check'], true);
+    if (!$isExemptApi && (!is_string($submittedToken) || !hash_equals($_SESSION['_token'], $submittedToken))) {
+        if (str_starts_with($routeCheck, 'api/')) {
+            http_response_code(419);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'message' => 'Phiên làm việc đã hết hạn. Vui lòng tải lại trang.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         http_response_code(419);
         exit('Phiên làm việc đã hết hạn hoặc yêu cầu không hợp lệ. Vui lòng tải lại trang và thử lại.');
     }
@@ -47,6 +62,7 @@ spl_autoload_register(function (string $class): void {
 });
 
 use App\Controllers\AdminController;
+use App\Controllers\ApiController;
 use App\Controllers\AuthController;
 use App\Controllers\BookingController;
 use App\Controllers\HomeController;
@@ -245,6 +261,23 @@ switch ($route) {
         break;
     case 'admin/coupon/delete':
         (new AdminController())->deleteCoupon();
+        break;
+
+    // --- REST API & FRONTEND ASSETS ---
+    case 'api/movies':
+        (new ApiController())->movies();
+        break;
+    case 'api/coupon/check':
+        (new ApiController())->checkCoupon();
+        break;
+    case 'api/admin/stats':
+        (new ApiController())->adminStats();
+        break;
+    case 'api/admin/checkin':
+        (new ApiController())->adminCheckIn();
+        break;
+    case 'frontend/js':
+        (new ApiController())->serveFrontendJs();
         break;
 
     default:

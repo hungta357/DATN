@@ -7,6 +7,32 @@ use App\Core\BaseModel;
 class MaintenanceModel extends BaseModel
 {
     protected string $table = 'maintenance_reports';
+    private static bool $schemaEnsured = false;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->ensureSchema();
+    }
+
+    private function ensureSchema(): void
+    {
+        if (self::$schemaEnsured) {
+            return;
+        }
+        self::$schemaEnsured = true;
+        try {
+            $sqlFile = dirname(__DIR__, 2) . '/database/maintenance_feature.sql';
+            if (is_file($sqlFile)) {
+                $sql = file_get_contents($sqlFile);
+                if ($sql !== false) {
+                    $this->db->exec($sql);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[MaintenanceModel::ensureSchema] ' . $e->getMessage());
+        }
+    }
 
     public function getCategories(): array
     {
@@ -291,7 +317,7 @@ class MaintenanceModel extends BaseModel
         }
     }
 
-    public function updateProgress(int $reportId, int $staffId, bool $submitForConfirmation, string $note, ?array $attachment = null): void
+    public function updateProgress(int $reportId, int $staffId, bool $submitForConfirmation, string $note, ?array $attachment = null, bool $isAdmin = false): void
     {
         if (trim($note) === '') {
             throw new \InvalidArgumentException('Vui lòng nhập nội dung cập nhật.');
@@ -301,7 +327,11 @@ class MaintenanceModel extends BaseModel
             $stmt = $this->db->prepare('SELECT * FROM maintenance_reports WHERE id = :id FOR UPDATE');
             $stmt->execute(['id' => $reportId]);
             $report = $stmt->fetch();
-            if (!$report || (int) $report['assigned_to'] !== $staffId || !in_array($report['status'], ['assigned', 'in_progress'], true)) {
+            $canUpdate = $report && (
+                ($isAdmin && in_array($report['status'], ['reported', 'assigned', 'in_progress'], true)) ||
+                ((int) $report['assigned_to'] === $staffId && in_array($report['status'], ['assigned', 'in_progress'], true))
+            );
+            if (!$canUpdate) {
                 throw new \InvalidArgumentException('Bạn không được phân công xử lý báo cáo này hoặc báo cáo đã chuyển trạng thái.');
             }
 

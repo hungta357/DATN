@@ -74,6 +74,7 @@ class AdminController extends BaseController
             'isStaff' => $isStaff,
             'cinemaInfo' => $userModel->getCinemaInfo(),
             'overviewStats' => $isAdmin ? $bookingModel->getOverviewStats() : [],
+            'analytics' => $isAdmin ? $bookingModel->getDetailedAnalytics() : [],
             'users' => $isAdmin ? $userModel->getAllUsersWithRoles() : [],
             'movies' => $isAdmin ? $movieModel->getAllMoviesWithGenres() : [],
             'editMovie' => $editMovie,
@@ -462,9 +463,9 @@ class AdminController extends BaseController
             $movieId = (int) ($_POST['movie_id'] ?? $existing['movie_id']);
             $roomId = (int) ($_POST['room_id'] ?? $existing['room_id']);
             $basePrice = (float) ($_POST['base_price'] ?? $existing['base_price']);
-            $status = in_array($_POST['status'] ?? '', ['scheduled', 'selling', 'closed', 'cancelled'], true)
+            $status = in_array($_POST['status'] ?? '', ['scheduled', 'selling', 'completed', 'cancelled'], true)
                 ? $_POST['status']
-                : $existing['status'];
+                : (($_POST['status'] ?? '') === 'closed' ? 'completed' : $existing['status']);
 
             $startTimeInput = $_POST['start_time'] ?? $existing['start_time'];
             $startTimestamp = is_string($startTimeInput) ? strtotime($startTimeInput) : false;

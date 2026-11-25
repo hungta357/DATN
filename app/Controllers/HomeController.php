@@ -95,7 +95,7 @@ class HomeController extends BaseController
         $userModel = new UserModel();
 
         $cinemaInfo = $userModel->getCinemaInfo();
-        $coupons = $engagementModel->getAllCoupons();
+        $coupons = $engagementModel->getActiveCoupons();
         $concessions = $engagementModel->getActiveConcessions();
 
         $this->view('home/promotions', [
