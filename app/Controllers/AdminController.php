@@ -184,8 +184,22 @@ class AdminController extends BaseController
         $showModel = new ShowModel();
 
         try {
-            $startTime = date('Y-m-d H:i:s', strtotime($_POST['start_time']));
-            $endTime = date('Y-m-d H:i:s', strtotime($_POST['start_time'] . ' +2 hours'));
+            $rawStartTime = trim((string) ($_POST['start_time'] ?? ''));
+            $startTimestamp = strtotime($rawStartTime);
+            if ($startTimestamp === false) {
+                throw new \InvalidArgumentException('Vui lòng chọn ngày và giờ chiếu hợp lệ.');
+            }
+
+            $movieModel = new \App\Models\MovieModel();
+            $movie = $movieModel->findWithDetails((int) ($_POST['movie_id'] ?? 0));
+            if (!$movie) {
+                throw new \InvalidArgumentException('Không tìm thấy phim được chọn.');
+            }
+            $runtime = max(1, (int) ($movie['runtime'] ?? 120));
+            $bufferMinutes = 15; // Thời gian vệ sinh/chuyển phòng giữa hai suất.
+            $endTimestamp = $startTimestamp + (($runtime + $bufferMinutes) * 60);
+            $startTime = date('Y-m-d H:i:s', $startTimestamp);
+            $endTime = date('Y-m-d H:i:s', $endTimestamp);
 
             $showId = $showModel->createShowWithSeats([
                 'movie_id' => (int) $_POST['movie_id'],

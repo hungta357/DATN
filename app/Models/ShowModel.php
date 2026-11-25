@@ -19,34 +19,43 @@ class ShowModel extends BaseModel
     public function getShowsByMovie(int $movieId): array
     {
         $sql = "SELECT sh.*, r.name AS room_name, r.room_type,
-                       (SELECT COUNT(*) FROM show_seats ss WHERE ss.show_id = sh.id AND ss.status = 'available') AS available_seats
+                       (SELECT COUNT(*) FROM show_seats ss
+                        WHERE ss.show_id = sh.id
+                          AND (ss.status = 'available' OR (ss.status = 'held' AND ss.hold_expires_at <= NOW()))) AS available_seats
                 FROM shows sh
                 INNER JOIN rooms r ON r.id = sh.room_id
                 WHERE sh.movie_id = :movie_id
                   AND sh.status IN ('scheduled', 'selling')
+                  AND sh.start_time > NOW()
                 ORDER BY sh.start_time ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->execute(['movie_id' => $movieId]);
         return $stmt->fetchAll();
     }
 
-    /**
-     * Lấy tất cả suất chiếu đang mở bán nhóm theo movie_id (phục vụ popup MUA VÉ nhanh & trang Lịch chiếu theo ngày kiểu Beta Cinema)
-     */
+    /** Lấy các suất chiếu tương lai, có thể lọc theo một ngày cụ thể. */
     public function getSellingShowsGroupedByMovie(?string $date = null): array
     {
         $whereDate = '';
         $params = [];
-        if ($date) {
-            $whereDate = ' AND DATE(sh.start_time) = :show_date ';
-            $params['show_date'] = $date;
+        if ($date !== null && $date !== '') {
+            $dateObject = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+            if (!$dateObject || $dateObject->format('Y-m-d') !== $date) {
+                return [];
+            }
+            $whereDate = ' AND sh.start_time >= :date_start AND sh.start_time < :date_end ';
+            $params['date_start'] = $dateObject->format('Y-m-d H:i:s');
+            $params['date_end'] = $dateObject->modify('+1 day')->format('Y-m-d H:i:s');
         }
 
         $sql = "SELECT sh.*, r.name AS room_name, r.room_type,
-                       (SELECT COUNT(*) FROM show_seats ss WHERE ss.show_id = sh.id AND ss.status = 'available') AS available_seats
+                       (SELECT COUNT(*) FROM show_seats ss
+                        WHERE ss.show_id = sh.id
+                          AND (ss.status = 'available' OR (ss.status = 'held' AND ss.hold_expires_at <= NOW()))) AS available_seats
                 FROM shows sh
                 INNER JOIN rooms r ON r.id = sh.room_id
-                WHERE sh.status IN ('scheduled', 'selling') {$whereDate}
+                WHERE sh.status IN ('scheduled', 'selling')
+                  AND sh.start_time > NOW() {$whereDate}
                 ORDER BY sh.start_time ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -92,45 +101,87 @@ class ShowModel extends BaseModel
      */
     public function createShowWithSeats(array $data): int
     {
+        $movieId = (int) ($data['movie_id'] ?? 0);
+        $roomId = (int) ($data['room_id'] ?? 0);
+        $startTime = (string) ($data['start_time'] ?? '');
+        $endTime = (string) ($data['end_time'] ?? '');
+        $basePrice = (float) ($data['base_price'] ?? 0);
+        $startTimestamp = strtotime($startTime);
+        $endTimestamp = strtotime($endTime);
+
+        if ($movieId <= 0 || $roomId <= 0 || $basePrice <= 0) {
+            throw new Exception('Vui lòng chọn phim, phòng chiếu và giá vé hợp lệ.');
+        }
+        if ($startTimestamp === false || $endTimestamp === false || $startTimestamp <= time() || $endTimestamp <= $startTimestamp) {
+            throw new Exception('Thời gian chiếu phải ở tương lai và giờ kết thúc phải sau giờ bắt đầu.');
+        }
+
         $this->db->beginTransaction();
         try {
+            $movieStmt = $this->db->prepare("SELECT id, runtime, status FROM movies WHERE id = :id FOR UPDATE");
+            $movieStmt->execute(['id' => $movieId]);
+            $movie = $movieStmt->fetch();
+            if (!$movie || $movie['status'] === 'hidden' || $movie['status'] === 'ended') {
+                throw new Exception('Phim không tồn tại hoặc không được phép xếp lịch chiếu.');
+            }
+
+            $roomStmt = $this->db->prepare("SELECT id, status FROM rooms WHERE id = :id FOR UPDATE");
+            $roomStmt->execute(['id' => $roomId]);
+            $room = $roomStmt->fetch();
+            if (!$room || $room['status'] !== 'active') {
+                throw new Exception('Phòng chiếu không tồn tại hoặc đang ngừng hoạt động.');
+            }
+
+            $overlapStmt = $this->db->prepare("SELECT id FROM shows
+                WHERE room_id = :room_id AND status <> 'cancelled'
+                  AND start_time < :end_time AND end_time > :start_time
+                LIMIT 1 FOR UPDATE");
+            $overlapStmt->execute([
+                'room_id' => $roomId,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+            ]);
+            if ($overlapStmt->fetchColumn()) {
+                throw new Exception('Phòng chiếu đã có suất chiếu khác trùng hoặc giao thời gian.');
+            }
+
             $showId = $this->create([
-                'movie_id' => (int) $data['movie_id'],
-                'room_id' => (int) $data['room_id'],
-                'start_time' => $data['start_time'],
-                'end_time' => $data['end_time'],
-                'base_price' => (float) $data['base_price'],
+                'movie_id' => $movieId,
+                'room_id' => $roomId,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'base_price' => $basePrice,
                 'status' => $data['status'] ?? 'selling',
             ]);
 
-            // Nếu phòng chưa có ghế thì tự khởi tạo sơ đồ ghế mặc định
             $roomModel = new RoomModel();
-            $roomSeats = $roomModel->getRoomSeats((int) $data['room_id']);
-            if (empty($roomSeats)) {
-                $roomModel->generateDefaultSeatsForRoom((int) $data['room_id']);
+            if (empty($roomModel->getRoomSeats($roomId))) {
+                $roomModel->generateDefaultSeatsForRoom($roomId);
             }
 
-            // Copy toàn bộ ghế của phòng sang bảng show_seats
-            $sqlInsertSeats = "
-                INSERT INTO show_seats (show_id, seat_id, price, status, created_at, updated_at)
+            $insertSeats = $this->db->prepare("INSERT INTO show_seats
+                (show_id, seat_id, price, status, created_at, updated_at)
                 SELECT :show_id, s.id, (:base_price + st.surcharge),
                        CASE WHEN s.status = 'active' THEN 'available' ELSE 'blocked' END,
                        NOW(), NOW()
-                FROM seats s
-                INNER JOIN seat_types st ON st.id = s.seat_type_id
-                WHERE s.room_id = :room_id
-            ";
-            $stmt = $this->db->prepare($sqlInsertSeats);
-            $stmt->execute([
+                FROM seats s INNER JOIN seat_types st ON st.id = s.seat_type_id
+                WHERE s.room_id = :room_id");
+            $insertSeats->execute([
                 'show_id' => $showId,
-                'base_price' => (float) $data['base_price'],
-                'room_id' => (int) $data['room_id'],
+                'base_price' => $basePrice,
+                'room_id' => $roomId,
             ]);
+
+            if ($insertSeats->rowCount() === 0) {
+                throw new Exception('Phòng chiếu chưa có sơ đồ ghế hợp lệ; không thể tạo suất chiếu.');
+            }
 
             $this->db->commit();
             return $showId;
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             throw $e;
         }
     }

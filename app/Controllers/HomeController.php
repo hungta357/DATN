@@ -52,9 +52,14 @@ class HomeController extends BaseController
         $showModel = new ShowModel();
         $userModel = new UserModel();
 
-        $selectedDate = $_GET['date'] ?? '';
+        $today = date('Y-m-d');
+        $selectedDate = $_GET['date'] ?? $today;
+        $dateObject = \DateTimeImmutable::createFromFormat('!Y-m-d', $selectedDate);
+        if (!$dateObject || $dateObject->format('Y-m-d') !== $selectedDate || $selectedDate < $today || $selectedDate > date('Y-m-d', strtotime('+6 days'))) {
+            $selectedDate = $today;
+        }
         $movies = $movieModel->getMovies('now_showing');
-        $showsByMovie = $showModel->getSellingShowsGroupedByMovie($selectedDate ?: null);
+        $showsByMovie = $showModel->getSellingShowsGroupedByMovie($selectedDate);
         $cinemaInfo = $userModel->getCinemaInfo();
 
         $this->view('home/schedule', [
