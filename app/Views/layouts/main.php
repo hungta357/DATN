@@ -428,11 +428,6 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link beta-nav-link <?= $currentRoute === 'contact' ? 'active' : '' ?>" href="?route=contact">
-                        Liên Hệ & Góp Ý
-                    </a>
-                </li>
-                <li class="nav-item">
                     <a class="nav-link beta-nav-link <?= $currentRoute === 'prices' ? 'active' : '' ?>" href="?route=prices">
                         Giá Vé
                     </a>
