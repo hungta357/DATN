@@ -9,23 +9,7 @@ $heroTitle = $featuredMovie ? ($featuredMovie['title_vi'] ?: $featuredMovie['tit
 ?>
 
 <style>
-    .cine-home { --cine-ink:#171511; --cine-muted:#8e887c; --cine-primary:#b58b48; --cine-accent:#e2c98f; color:#25231f; }
-    .cine-home .cine-section { background:#f7f5f0; }
-    .cine-home .cine-benefits { background:#171715; }
-    .cine-home .cine-section-title { color:#211e18; }
-    .cine-home .cine-filter { border-color:#e6ddca; box-shadow:0 12px 34px rgba(45,35,18,.07); }
-    .cine-home .cine-filter .form-control:focus,.cine-home .cine-filter .form-select:focus { border-color:#b58b48; box-shadow:0 0 0 3px rgba(181,139,72,.14); }
-    .cine-home .cine-tab { color:#615846; border-color:#e1d7c3; }
-    .cine-home .cine-tab:hover,.cine-home .cine-tab.active { background:#b58b48; border-color:#b58b48; color:#171511; }
-    .cine-home .cine-movie-card { border-color:#e7dfd0; box-shadow:0 8px 26px rgba(40,31,17,.07); }
-    .cine-home .cine-movie-title { color:#252018; }
-    .cine-home .cine-rating { background:#e2c98f; }
-    .cine-home .cine-promo-card { height:100%; padding:22px; border:1px solid rgba(215,181,109,.28); border-radius:16px; background:linear-gradient(145deg,#24221d,#171613); color:#f5efe2; }
-    .cine-home .cine-promo-code { display:inline-block; margin-top:12px; padding:6px 10px; border:1px dashed #d7b56d; border-radius:7px; color:#e8cc8f; font-weight:900; letter-spacing:.08em; }
-    .cine-home .cine-wishlist { position:absolute; right:11px; bottom:11px; z-index:3; width:38px; height:38px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.65); border-radius:50%; background:rgba(20,19,16,.78); color:#fff; }
-    .cine-home .cine-wishlist.active { color:#f08b91; border-color:#f08b91; }
-    .cine-home .cine-wishlist:hover { transform:scale(1.07); }
-    .cine-home .cine-movie-card { position:relative; }
+    .cine-home { --cine-ink:#101322; --cine-muted:#8b90a3; --cine-primary:#b58b48; --cine-accent:#ffb547; color:#202338; }
     .cine-hero { min-height:590px; position:relative; overflow:hidden; isolation:isolate; display:flex; align-items:center; background:#171612; }
     .cine-hero::before { content:""; position:absolute; inset:0; z-index:-2; background-image:url('<?= $e($featuredBackdrop) ?>'); background-size:cover; background-position:center 35%; transform:scale(1.02); }
     .cine-hero::after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,rgba(13,13,12,.97) 0%,rgba(18,17,14,.84) 43%,rgba(18,17,14,.20) 100%),linear-gradient(0deg,rgba(13,13,12,.72),transparent 52%); }
@@ -108,37 +92,6 @@ $heroTitle = $featuredMovie ? ($featuredMovie['title_vi'] ?: $featuredMovie['tit
         </div>
     </section>
 
-    <?php if (!empty($homepageCoupons)): ?>
-    <section class="cine-section py-4" aria-labelledby="cine-promo-title">
-        <div class="container">
-            <div class="cine-section-heading mb-3">
-                <div><div class="cine-kicker">ĐẶC QUYỀN THÀNH VIÊN</div><h2 class="cine-section-title" id="cine-promo-title">Ưu đãi đang áp dụng</h2></div>
-                <a href="?route=promotions" class="text-decoration-none fw-bold" style="color:#9b7438">Tất cả ưu đãi <i class="bi bi-arrow-right"></i></a>
-            </div>
-            <div class="row g-3">
-                <?php foreach ($homepageCoupons as $coupon): ?>
-                    <div class="col-12 col-md-4">
-                        <article class="cine-promo-card">
-                            <div class="small text-uppercase fw-bold" style="color:#d7b56d;letter-spacing:.12em">CINENOW REWARDS</div>
-                            <h3 class="h5 fw-bold mt-2 mb-1"><?= $e($coupon['name']) ?></h3>
-                            <p class="small mb-0 text-white-50"><?= $e($coupon['description'] ?: 'Ưu đãi dành cho khách hàng CineNow.') ?></p>
-                            <span class="cine-promo-code"><?= $e($coupon['code']) ?></span>
-                            <div class="small mt-2 text-white-50">
-                                <?php if ($coupon['discount_type'] === 'percent'): ?>
-                                    Giảm <?= rtrim(rtrim(number_format((float) $coupon['discount_value'], 2), '0'), '.') ?>%
-                                <?php else: ?>
-                                    Giảm <?= number_format((float) $coupon['discount_value'], 0, ',', '.') ?>đ
-                                <?php endif; ?>
-                                <?php if (!empty($coupon['expires_at'])): ?> · Hạn <?= date('d/m/Y', strtotime($coupon['expires_at'])) ?><?php endif; ?>
-                            </div>
-                        </article>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </section>
-    <?php endif; ?>
-
     <section class="cine-section" id="movie-list">
         <div class="container">
             <div class="cine-section-heading">
@@ -196,19 +149,8 @@ $heroTitle = $featuredMovie ? ($featuredMovie['title_vi'] ?: $featuredMovie['tit
                                 <a class="cine-poster" href="?route=movie/detail&id=<?= (int) $movie['id'] ?>">
                                     <span class="cine-age" style="<?= $ageClass ?>"><?= $e($age) ?></span>
                                     <?php if (!empty($movie['imdb_rating'])): ?><span class="cine-rating"><i class="bi bi-star-fill me-1"></i><?= number_format((float) $movie['imdb_rating'], 1) ?></span><?php endif; ?>
-                                    <img src="<?= $e($poster) ?>" alt="Poster <?= $e($movie['title']) ?>" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/600x900/171715/e2c98f?text=CineNow';">
+                                    <img src="<?= $e($poster) ?>" alt="Poster <?= $e($movie['title']) ?>" loading="lazy" onerror="this.onerror=null;this.src='https://placehold.co/600x900/171a2d/ffffff?text=Cinema';">
                                 </a>
-                                <?php if (!empty($_SESSION['user']['id'])): ?>
-                                    <?php $isWishlisted = in_array((int) $movie['id'], $wishlistMovieIds ?? [], true); ?>
-                                    <form method="POST" action="?route=wishlist/toggle" class="position-absolute" style="top:0;right:0;margin:0">
-                                        <input type="hidden" name="_token" value="<?= $e($_SESSION['_token'] ?? '') ?>">
-                                        <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
-                                        <input type="hidden" name="return_to" value="home">
-                                        <button class="cine-wishlist <?= $isWishlisted ? 'active' : '' ?>" type="submit" aria-label="<?= $isWishlisted ? 'Bỏ yêu thích' : 'Thêm vào yêu thích' ?>" title="<?= $isWishlisted ? 'Bỏ yêu thích' : 'Thêm vào yêu thích' ?>">
-                                            <i class="bi <?= $isWishlisted ? 'bi-heart-fill' : 'bi-heart' ?>"></i>
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
                                 <div class="cine-card-body">
                                     <a class="cine-movie-title" href="?route=movie/detail&id=<?= (int) $movie['id'] ?>"><?= $e($movie['title_vi'] ?: $movie['title']) ?></a>
                                     <div class="cine-meta mt-2"><i class="bi bi-tags me-1"></i><?= $e($movie['genre_names'] ?: 'Đang cập nhật thể loại') ?></div>

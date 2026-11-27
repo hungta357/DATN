@@ -23,10 +23,21 @@
 
                     <?php
                     $groupedRows = [];
+                    $hasOwnHeldSeats = false;
                     foreach ($showSeats as $ss) {
                         $groupedRows[$ss['row_label']][] = $ss;
+                        if ($ss['status'] === 'held' && (int) $ss['held_by_user_id'] === (int) $user['id']) {
+                            $hasOwnHeldSeats = true;
+                        }
                     }
                     ?>
+
+                    <?php if ($hasOwnHeldSeats): ?>
+                        <div class="alert alert-info text-start">
+                            Bạn đang có ghế được giữ trong một đơn chờ thanh toán. Bạn có thể chọn lại các ghế đó bên dưới hoặc
+                            <a href="?route=booking/my" class="alert-link">Mở đơn đặt vé</a> để thanh toán đơn cũ.
+                        </div>
+                    <?php endif; ?>
 
                     <?php if (empty($groupedRows)): ?>
                         <div class="alert alert-warning">Suất chiếu này chưa có sơ đồ ghế.</div>
@@ -37,7 +48,8 @@
                                 <?php foreach ($seatsInRow as $seat): ?>
                                     <?php
                                     $status = $seat['status'];
-                                    $isSelectable = ($status === 'available') || ($status === 'held' && (int) $seat['held_by_user_id'] === (int) $user['id']);
+                                    $isOwnHeld = ($status === 'held' && (int) $seat['held_by_user_id'] === (int) $user['id']);
+                                    $isSelectable = ($status === 'available') || $isOwnHeld;
                                     $cssClass = 'seat-available';
                                     if (!$isSelectable) {
                                         $cssClass = ($status === 'held') ? 'seat-held' : 'seat-booked';
@@ -49,9 +61,13 @@
                                     if (stripos($seat['seat_type_name'], 'Couple') !== false && !$isSelectable) {
                                         $cssClass .= ' seat-couple';
                                     }
+                                    $seatTitle = $seat['seat_code'] . ' (' . $seat['seat_type_name'] . ') - ' . number_format((float) $seat['price']) . 'đ';
+                                    if ($isOwnHeld) {
+                                        $seatTitle .= ' - Đang được giữ bởi bạn (có thể chọn lại)';
+                                    }
                                     ?>
                                     <label class="seat-box <?= $cssClass ?>"
-                                           title="<?= htmlspecialchars($seat['seat_code'] . ' (' . $seat['seat_type_name'] . ') - ' . number_format((float) $seat['price']) . 'đ') ?>">
+                                           title="<?= htmlspecialchars($seatTitle) ?>">
                                         <?php if ($isSelectable): ?>
                                             <input type="checkbox"
                                                    name="show_seat_ids[]"
@@ -112,8 +128,9 @@
                     </div>
                     <div class="card-body p-4">
                         <div class="d-flex gap-3 mb-3 pb-3 border-bottom">
-                            <img src="<?= htmlspecialchars($show['poster_path'] ?: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=300') ?>"
-                                 style="width:70px;height:100px;object-fit:cover;" class="rounded-3">
+                            <img src="<?= htmlspecialchars($show['poster_path'] ?: 'public/images/posters/dune-part-two.svg') ?>"
+                                 style="width:70px;height:100px;object-fit:cover;" class="rounded-3"
+                                 onerror="this.onerror=null;this.src='public/images/posters/dune-part-two.svg';">
                             <div>
                                 <h6 class="fw-bold mb-1" style="color: var(--beta-blue);"><?= htmlspecialchars($show['title_vi'] ?: $show['movie_title']) ?></h6>
                                 <span class="badge bg-warning text-dark mb-1"><?= htmlspecialchars($show['age_rating'] ?: 'P') ?></span>
@@ -138,15 +155,23 @@
                                 <span class="text-muted">Tiền ghế:</span>
                                 <strong id="seatSubtotalText">0đ</strong>
                             </div>
-                            <div class="d-flex justify-content-between">
+                            <div class="d-flex justify-content-between mb-1">
                                 <span class="text-muted">Combo bắp nước:</span>
                                 <strong id="concessionTotalText">0đ</strong>
+                            </div>
+                            <div class="d-flex justify-content-between text-success" id="discountRow" style="display:none !important;">
+                                <span>Giảm giá Coupon:</span>
+                                <strong id="discountAmountText">-0đ</strong>
                             </div>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Mã giảm giá (Voucher / Coupon)</label>
-                            <input type="text" name="coupon_code" class="form-control form-control-sm" placeholder="Nhập WELCOME20 hoặc GIAM30K">
+                            <div class="input-group input-group-sm">
+                                <input type="text" name="coupon_code" id="couponCodeInput" class="form-control" placeholder="Nhập WELCOME20 hoặc GIAM30K">
+                                <button type="button" class="btn btn-outline-primary fw-semibold" id="btnCheckCoupon">Áp dụng</button>
+                            </div>
+                            <div id="couponFeedback" class="small mt-1"></div>
                         </div>
 
                         <div class="mb-3">
@@ -171,16 +196,24 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const bookingForm = document.getElementById('bookingForm');
     const seatCheckboxes = document.querySelectorAll('.seat-checkbox');
     const concessionInputs = document.querySelectorAll('.concession-input');
     const selectedSeatList = document.getElementById('selectedSeatList');
     const seatSubtotalText = document.getElementById('seatSubtotalText');
     const concessionTotalText = document.getElementById('concessionTotalText');
     const grandTotalText = document.getElementById('grandTotalText');
+    const couponCodeInput = document.getElementById('couponCodeInput');
+    const btnCheckCoupon = document.getElementById('btnCheckCoupon');
+    const couponFeedback = document.getElementById('couponFeedback');
+    const discountRow = document.getElementById('discountRow');
+    const discountAmountText = document.getElementById('discountAmountText');
 
-    function recalc() {
-        let codes = [];
+    let currentDiscount = 0;
+
+    function getOrderBeforeDiscount() {
         let seatSum = 0;
+        let codes = [];
         seatCheckboxes.forEach(cb => {
             const label = cb.closest('.seat-box');
             if (cb.checked) {
@@ -200,13 +233,95 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
+        return { codes, seatSum, conSum, totalBefore: seatSum + conSum };
+    }
+
+    function recalc() {
+        const { codes, seatSum, conSum, totalBefore } = getOrderBeforeDiscount();
+        const finalTotal = Math.max(0, totalBefore - currentDiscount);
+
         selectedSeatList.textContent = codes.length ? codes.join(', ') : 'Chưa chọn';
         seatSubtotalText.textContent = seatSum.toLocaleString('vi-VN') + 'đ';
         concessionTotalText.textContent = conSum.toLocaleString('vi-VN') + 'đ';
-        grandTotalText.textContent = (seatSum + conSum).toLocaleString('vi-VN') + 'đ';
+
+        if (discountRow && discountAmountText) {
+            if (currentDiscount > 0) {
+                discountRow.style.setProperty('display', 'flex', 'important');
+                discountAmountText.textContent = '-' + currentDiscount.toLocaleString('vi-VN') + 'đ';
+            } else {
+                discountRow.style.setProperty('display', 'none', 'important');
+            }
+        }
+
+        grandTotalText.textContent = finalTotal.toLocaleString('vi-VN') + 'đ';
     }
 
-    seatCheckboxes.forEach(cb => cb.addEventListener('change', recalc));
-    concessionInputs.forEach(inp => inp.addEventListener('input', recalc));
+    if (btnCheckCoupon && couponCodeInput) {
+        btnCheckCoupon.addEventListener('click', function () {
+            const code = couponCodeInput.value.trim();
+            const { totalBefore } = getOrderBeforeDiscount();
+            if (!code) {
+                currentDiscount = 0;
+                couponFeedback.className = 'small mt-1 text-danger';
+                couponFeedback.textContent = 'Vui lòng nhập mã giảm giá.';
+                recalc();
+                return;
+            }
+
+            btnCheckCoupon.disabled = true;
+            fetch('?route=api/coupon/check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code, order_amount: totalBefore })
+            })
+                .then(res => res.json())
+                .then(json => {
+                    if (json.success) {
+                        currentDiscount = parseFloat(json.discount_amount || 0);
+                        couponFeedback.className = 'small mt-1 text-success fw-semibold';
+                        couponFeedback.textContent = json.message;
+                    } else {
+                        currentDiscount = 0;
+                        couponFeedback.className = 'small mt-1 text-danger';
+                        couponFeedback.textContent = json.message || 'Mã không hợp lệ.';
+                    }
+                    recalc();
+                })
+                .catch(() => {
+                    couponFeedback.className = 'small mt-1 text-danger';
+                    couponFeedback.textContent = 'Không thể kiểm tra mã lúc này.';
+                })
+                .finally(() => {
+                    btnCheckCoupon.disabled = false;
+                });
+        });
+    }
+
+    if (bookingForm) {
+        bookingForm.addEventListener('submit', function (e) {
+            const { codes } = getOrderBeforeDiscount();
+            if (codes.length === 0) {
+                e.preventDefault();
+                alert('Vui lòng chọn ít nhất 1 ghế trên sơ đồ trước khi tiếp tục thanh toán.');
+            }
+        });
+    }
+
+    // Khi thay đổi ghế hoặc số lượng combo, kết quả coupon cũ không còn đáng tin cậy.
+    // Backend vẫn kiểm tra và tính lại coupon khi tạo booking; frontend yêu cầu kiểm tra lại để tổng tiền xem trước không sai.
+    function invalidateCouponPreview() {
+        if (currentDiscount > 0) {
+            currentDiscount = 0;
+            if (couponFeedback) {
+                couponFeedback.className = 'small mt-1 text-warning';
+                couponFeedback.textContent = 'Đơn hàng đã thay đổi. Vui lòng kiểm tra lại mã giảm giá.';
+            }
+        }
+        recalc();
+    }
+
+    seatCheckboxes.forEach(cb => cb.addEventListener('change', invalidateCouponPreview));
+    concessionInputs.forEach(inp => inp.addEventListener('input', invalidateCouponPreview));
+    recalc();
 });
 </script>

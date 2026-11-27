@@ -52,14 +52,9 @@ class HomeController extends BaseController
         $showModel = new ShowModel();
         $userModel = new UserModel();
 
-        $today = date('Y-m-d');
-        $selectedDate = $_GET['date'] ?? $today;
-        $dateObject = \DateTimeImmutable::createFromFormat('!Y-m-d', $selectedDate);
-        if (!$dateObject || $dateObject->format('Y-m-d') !== $selectedDate || $selectedDate < $today || $selectedDate > date('Y-m-d', strtotime('+6 days'))) {
-            $selectedDate = $today;
-        }
+        $selectedDate = $_GET['date'] ?? date('Y-m-d');
         $movies = $movieModel->getMovies('now_showing');
-        $showsByMovie = $showModel->getSellingShowsGroupedByMovie($selectedDate);
+        $showsByMovie = $showModel->getSellingShowsGroupedByMovie($selectedDate ?: null);
         $cinemaInfo = $userModel->getCinemaInfo();
 
         $this->view('home/schedule', [
@@ -100,7 +95,7 @@ class HomeController extends BaseController
         $userModel = new UserModel();
 
         $cinemaInfo = $userModel->getCinemaInfo();
-        $coupons = $engagementModel->getAllCoupons();
+        $coupons = $engagementModel->getActiveCoupons();
         $concessions = $engagementModel->getActiveConcessions();
 
         $this->view('home/promotions', [

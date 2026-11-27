@@ -25,36 +25,26 @@ class EngagementModel extends BaseModel
     }
 
     // --- 7.2 COUPONS (MÃ GIẢM GIÁ) ---
-    /**
-     * Các ưu đãi đang có hiệu lực để giới thiệu trên trang chủ.
-     * Không hiển thị mã đã hết hạn hoặc đã dùng hết lượt.
-     */
-    public function getHomepageCoupons(int $limit = 3): array
-    {
-        $limit = max(1, min(6, $limit));
-        $sql = "SELECT id, code, name, description, discount_type, discount_value,
-                       min_order_amount, max_discount_amount, expires_at
-                FROM coupons
-                WHERE status = 'active'
-                  AND (starts_at IS NULL OR starts_at <= NOW())
-                  AND (expires_at IS NULL OR expires_at >= NOW())
-                  AND (usage_limit IS NULL OR used_count < usage_limit)
-                ORDER BY
-                    CASE WHEN expires_at IS NULL THEN 1 ELSE 0 END ASC,
-                    expires_at ASC,
-                    id DESC
-                LIMIT {$limit}";
-        return $this->db->query($sql)->fetchAll();
-    }
-
     public function getAllCoupons(): array
     {
         return $this->db->query("SELECT * FROM coupons ORDER BY id DESC")->fetchAll();
     }
 
+    public function getActiveCoupons(): array
+    {
+        return $this->db->query("
+            SELECT * FROM coupons
+            WHERE status = 'active'
+              AND (starts_at IS NULL OR starts_at <= NOW())
+              AND (expires_at IS NULL OR expires_at >= NOW())
+              AND (usage_limit IS NULL OR used_count < usage_limit)
+            ORDER BY id DESC
+        ")->fetchAll();
+    }
+
     public function validateCoupon(string $code, float $orderAmount): array
     {
-        $stmt = $this->db->prepare("SELECT * FROM coupons WHERE code = :code AND status = 'active' LIMIT 1");
+        $stmt = $this->db->prepare("SELECT * FROM coupons WHERE code = :code AND status = 'active' LIMIT 1 FOR UPDATE");
         $stmt->execute(['code' => $code]);
         $coupon = $stmt->fetch();
 

@@ -6,7 +6,7 @@
                     <span class="oswald-font fs-5 fw-bold" style="color: var(--beta-blue);">
                         <i class="bi bi-ticket-detailed text-danger me-1"></i> ĐƠN ĐẶT VÉ #<?= htmlspecialchars($booking['booking_code']) ?>
                     </span>
-                    <span class="badge <?= $booking['status'] === 'confirmed' ? 'bg-success' : 'bg-warning text-dark' ?>">
+                    <span class="badge <?= $booking['status'] === 'confirmed' ? 'bg-success' : ($booking['status'] === 'pending' ? 'bg-warning text-dark' : 'bg-secondary') ?>">
                         <?= strtoupper($booking['status']) ?>
                     </span>
                 </div>
@@ -97,7 +97,7 @@
                         </form>
                     </div>
                 </div>
-            <?php else: ?>
+            <?php elseif ($booking['status'] === 'confirmed'): ?>
                 <div class="card border-0 shadow-sm bg-white rounded-4 overflow-hidden">
                     <div class="card-header bg-success text-white oswald-font fs-5 text-uppercase d-flex justify-content-between align-items-center">
                         <span><i class="bi bi-qr-code-scan me-1"></i> VÉ ĐIỆN TỬ QR CODE ĐÃ PHÁT HÀNH</span>
@@ -120,6 +120,15 @@
                                 </div>
                             </div>
                         <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php else: ?>
+                <div class="card border-0 shadow-sm bg-white rounded-4">
+                    <div class="card-body p-4 text-center">
+                        <div class="display-6 text-secondary mb-2"><i class="bi bi-clock-history"></i></div>
+                        <h5 class="fw-bold">Đơn đặt vé đã <?= htmlspecialchars($booking['status'] === 'expired' ? 'hết hạn' : 'đóng') ?></h5>
+                        <p class="text-muted mb-4">Ghế đã được trả lại để khách khác có thể đặt. Vui lòng chọn một suất chiếu khác.</p>
+                        <a href="?route=schedule" class="btn btn-beta-buy">XEM LỊCH CHIẾU</a>
                     </div>
                 </div>
             <?php endif; ?>

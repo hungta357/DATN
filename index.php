@@ -17,9 +17,24 @@ if (empty($_SESSION['_token'])) {
 }
 
 // Bảo vệ mọi biểu mẫu POST khỏi CSRF. Các form trong Views đều có trường _token.
+// Hỗ trợ cả JSON payload hoặc header X-CSRF-TOKEN cho các API call.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $submittedToken = $_POST['_token'] ?? '';
-    if (!is_string($submittedToken) || !hash_equals($_SESSION['_token'], $submittedToken)) {
+    $routeCheck = $_GET['route'] ?? '';
+    $submittedToken = $_POST['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if ($submittedToken === '' && str_starts_with((string) ($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')) {
+        $jsonInput = json_decode(file_get_contents('php://input') ?: '', true);
+        if (is_array($jsonInput) && isset($jsonInput['_token'])) {
+            $submittedToken = $jsonInput['_token'];
+        }
+    }
+    $isExemptApi = in_array($routeCheck, ['api/coupon/check'], true);
+    if (!$isExemptApi && (!is_string($submittedToken) || !hash_equals($_SESSION['_token'], $submittedToken))) {
+        if (str_starts_with($routeCheck, 'api/')) {
+            http_response_code(419);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'message' => 'Phiên làm việc đã hết hạn. Vui lòng tải lại trang.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         http_response_code(419);
         exit('Phiên làm việc đã hết hạn hoặc yêu cầu không hợp lệ. Vui lòng tải lại trang và thử lại.');
     }
@@ -47,9 +62,15 @@ spl_autoload_register(function (string $class): void {
 });
 
 use App\Controllers\AdminController;
+use App\Controllers\ApiController;
 use App\Controllers\AuthController;
 use App\Controllers\BookingController;
 use App\Controllers\HomeController;
+use App\Controllers\GroupBookingController;
+use App\Controllers\MaintenanceController;
+use App\Controllers\IncidentController;
+use App\Controllers\StaffShiftController;
+use App\Controllers\TicketSecurityController;
 use App\Controllers\WalletController;
 
 $route = $_GET['route'] ?? 'home';
@@ -114,6 +135,30 @@ switch ($route) {
     case 'booking/my':
         (new BookingController())->myBookings();
         break;
+    case 'booking/group':
+        (new GroupBookingController())->index();
+        break;
+    case 'booking/group/create':
+        (new GroupBookingController())->create();
+        break;
+    case 'booking/group/join':
+        (new GroupBookingController())->join();
+        break;
+    case 'booking/group/seat':
+        (new GroupBookingController())->assignSeat();
+        break;
+    case 'booking/group/finalize':
+        (new GroupBookingController())->finalize();
+        break;
+    case 'booking/group/pay-share':
+        (new GroupBookingController())->payShare();
+        break;
+    case 'incidents':
+        (new IncidentController())->index();
+        break;
+    case 'incidents/create':
+        (new IncidentController())->create();
+        break;
 
     // --- NHÁNH 6: WALLET (VÍ NỘI BỘ) ---
     case 'wallet':
@@ -148,8 +193,17 @@ switch ($route) {
     case 'admin/movie/status':
         (new AdminController())->updateMovieStatus();
         break;
+    case 'admin/movie/delete':
+        (new AdminController())->deleteMovie();
+        break;
     case 'admin/room/save':
         (new AdminController())->saveRoom();
+        break;
+    case 'admin/room/update':
+        (new AdminController())->updateRoom();
+        break;
+    case 'admin/room/delete':
+        (new AdminController())->deleteRoom();
         break;
     case 'admin/room/generate-seats':
         (new AdminController())->generateSeats();
@@ -157,14 +211,73 @@ switch ($route) {
     case 'admin/show/save':
         (new AdminController())->saveShow();
         break;
+    case 'admin/show/update':
+        (new AdminController())->updateShow();
+        break;
+    case 'admin/show/delete':
+        (new AdminController())->deleteShow();
+        break;
+    case 'admin/show/auto-generate':
+        (new AdminController())->autoGenerateShows();
+        break;
     case 'admin/ticket/checkin':
-        (new AdminController())->checkInTicket();
+        (new TicketSecurityController())->checkIn();
+        break;
+    case 'admin/incidents/assign':
+        (new IncidentController())->assign();
+        break;
+    case 'admin/incidents/update':
+        (new IncidentController())->update();
+        break;
+    case 'admin/shifts':
+        (new StaffShiftController())->index();
+        break;
+    case 'admin/shifts/create':
+        (new StaffShiftController())->create();
+        break;
+    case 'admin/shifts/status':
+        (new StaffShiftController())->updateStatus();
         break;
     case 'admin/concession/save':
         (new AdminController())->saveConcession();
         break;
+    case 'admin/concession/delete':
+        (new AdminController())->deleteConcession();
+        break;
     case 'admin/coupon/save':
         (new AdminController())->saveCoupon();
+        break;
+    case 'admin/maintenance/create':
+        (new MaintenanceController())->create();
+        break;
+    case 'admin/maintenance/assign':
+        (new MaintenanceController())->assign();
+        break;
+    case 'admin/maintenance/progress':
+        (new MaintenanceController())->updateProgress();
+        break;
+    case 'admin/maintenance/confirm':
+        (new MaintenanceController())->confirm();
+        break;
+    case 'admin/coupon/delete':
+        (new AdminController())->deleteCoupon();
+        break;
+
+    // --- REST API & FRONTEND ASSETS ---
+    case 'api/movies':
+        (new ApiController())->movies();
+        break;
+    case 'api/coupon/check':
+        (new ApiController())->checkCoupon();
+        break;
+    case 'api/admin/stats':
+        (new ApiController())->adminStats();
+        break;
+    case 'api/admin/checkin':
+        (new ApiController())->adminCheckIn();
+        break;
+    case 'frontend/js':
+        (new ApiController())->serveFrontendJs();
         break;
 
     default:
