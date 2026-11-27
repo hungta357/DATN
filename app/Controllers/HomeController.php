@@ -11,13 +11,15 @@ use App\Models\UserModel;
 
 class HomeController extends BaseController
 {
-    public function index(): void
+        public function index(): void
     {
         $movieModel = new MovieModel();
         $userModel = new UserModel();
         $showModel = new ShowModel();
+        $engagementModel = new EngagementModel();
+        $roomModel = new RoomModel();
 
-        // Mặc định hiển thị tab PHIM ĐANG CHIẾU giống Beta Cinemas
+        // Mặc định hiển thị tab PHIM ĐANG CHIẾU
         $status = $_GET['status'] ?? 'now_showing';
         if ($status === 'all') {
             $status = null;
@@ -27,14 +29,50 @@ class HomeController extends BaseController
         $genreId = $genreId > 0 ? $genreId : null;
         $genres = $movieModel->getAllGenres();
 
+        // Danh sách phim theo bộ lọc (tab + search + thể loại)
         $movies = $movieModel->getMovies($status, $keyword ?: null, $genreId);
+
+        // Dữ liệu bổ sung cho các section trang chủ
+        $nowShowingMovies = $movieModel->getMovies('now_showing');
+        $comingSoonMovies = $movieModel->getMovies('coming_soon');
         $cinemaInfo = $userModel->getCinemaInfo();
         $showsByMovie = $showModel->getSellingShowsGroupedByMovie();
+
+        // Lịch chiếu nhanh hôm nay
+        $today = date('Y-m-d');
+        $todayShowsByMovie = $showModel->getSellingShowsGroupedByMovie($today);
+
+        // Ưu đãi: coupon còn hiệu lực + combo bắp nước đang bán
+        $allCoupons = $engagementModel->getAllCoupons();
+        $activeCoupons = array_values(array_filter($allCoupons, static function (array $cp): bool {
+            if (($cp['status'] ?? '') !== 'active') {
+                return false;
+            }
+            if (!empty($cp['expires_at']) && strtotime($cp['expires_at']) < time()) {
+                return false;
+            }
+            if (!empty($cp['starts_at']) && strtotime($cp['starts_at']) > time()) {
+                return false;
+            }
+            return true;
+        }));
+        $concessions = $engagementModel->getActiveConcessions();
+        $rooms = $roomModel->all('id ASC');
+
+        // Hero slider: lấy tối đa 3 phim đang chiếu có backdrop hoặc poster
+        $heroMovies = array_slice($nowShowingMovies, 0, 3);
 
         $this->view('home/index', [
             'pageTitle' => $cinemaInfo['name'] . ' - Hệ thống rạp chiếu phim',
             'movies' => $movies,
+            'nowShowingMovies' => $nowShowingMovies,
+            'comingSoonMovies' => $comingSoonMovies,
+            'heroMovies' => $heroMovies,
             'showsByMovie' => $showsByMovie,
+            'todayShowsByMovie' => $todayShowsByMovie,
+            'activeCoupons' => $activeCoupons,
+            'concessions' => $concessions,
+            'rooms' => $rooms,
             'cinemaInfo' => $cinemaInfo,
             'currentStatus' => $status ?? 'all',
             'keyword' => $keyword,
