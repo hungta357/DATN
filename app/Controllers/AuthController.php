@@ -168,6 +168,79 @@ class AuthController extends BaseController
         ]);
     }
 
+    public function account(): void
+    {
+        $user = $this->requireAuth();
+        $userModel = new UserModel();
+        $editUrl = '?route=auth/account&edit=1';
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $nameInput = $_POST['name'] ?? '';
+            $emailInput = $_POST['email'] ?? '';
+            $phoneInput = $_POST['phone'] ?? '';
+
+            if (!is_string($nameInput) || !is_string($emailInput) || !is_string($phoneInput)) {
+                $this->setFlash('danger', 'Thông tin tài khoản không hợp lệ.');
+                $this->redirect($editUrl);
+            }
+
+            $name = trim($nameInput);
+            $email = strtolower(trim($emailInput));
+            $phone = preg_replace('/[\s().-]/u', '', trim($phoneInput));
+            $nameLength = preg_match_all('/./us', $name);
+            $this->rememberAuthInput([
+                'name' => $name,
+                'email' => $email,
+                'phone' => trim($phoneInput),
+            ]);
+
+            if ($nameLength === false || $nameLength < 2 || $nameLength > 150) {
+                $this->setFlash('danger', 'Họ và tên cần có từ 2 đến 150 ký tự.');
+                $this->redirect($editUrl);
+            }
+
+            if (strlen($email) > 150 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $this->setFlash('danger', 'Vui lòng nhập địa chỉ email hợp lệ (tối đa 150 ký tự).');
+                $this->redirect($editUrl);
+            }
+
+            if ($phone === null || ($phone !== '' && !preg_match('/^\+?[0-9]{9,15}$/', $phone))) {
+                $this->setFlash('danger', 'Số điện thoại cần có từ 9 đến 15 chữ số.');
+                $this->redirect($editUrl);
+            }
+
+            try {
+                $userModel->updateProfile(
+                    (int) $user['id'],
+                    $name,
+                    $email,
+                    $phone !== '' ? $phone : null
+                );
+
+                $_SESSION['user']['name'] = $name;
+                $_SESSION['user']['email'] = $email;
+                $_SESSION['user']['phone'] = $phone !== '' ? $phone : null;
+                $this->setFlash('success', 'Thông tin tài khoản đã được cập nhật.');
+                $this->redirect('?route=auth/account');
+            } catch (\PDOException $e) {
+                if ($e->getCode() === '23000') {
+                    $this->setFlash('danger', 'Email hoặc số điện thoại này đã được tài khoản khác sử dụng.');
+                } else {
+                    error_log('[CineNow account update] ' . $e->getMessage());
+                    $this->setFlash('danger', 'Không thể cập nhật tài khoản lúc này. Vui lòng thử lại.');
+                }
+                $this->redirect($editUrl);
+            }
+        }
+
+        $this->view('auth/account', [
+            'pageTitle' => 'Tài khoản của tôi',
+            'account' => $user,
+            'oldInput' => $this->consumeAuthInput(),
+            'isEditing' => ($_GET['edit'] ?? '') === '1',
+        ]);
+    }
+
     public function logout(): void
     {
         unset($_SESSION['user']);

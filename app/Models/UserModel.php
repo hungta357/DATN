@@ -41,6 +41,19 @@ class UserModel extends BaseModel
         return (bool) $stmt->fetchColumn();
     }
 
+    public function updateProfile(int $userId, string $name, string $email, ?string $phone): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE users SET name = :name, email = :email, phone = :phone, updated_at = NOW() WHERE id = :id'
+        );
+        return $stmt->execute([
+            'name' => trim($name),
+            'email' => strtolower(trim($email)),
+            'phone' => $phone !== null && trim($phone) !== '' ? trim($phone) : null,
+            'id' => $userId,
+        ]);
+    }
+
     /**
      * Đảm bảo tài khoản Quản trị viên (Admin) chuyên biệt luôn tồn tại trong DB
      * Tài khoản mặc định: admin@cinema.vn (hoặc admin) | Mật khẩu riêng: admin123

@@ -59,6 +59,7 @@ Sau khi chạy `php setup.php`:
 - Script setup tự bổ sung lịch chiếu cho 7 ngày tiếp theo (tối đa 2 phòng × 5 khung giờ/ngày) và sinh sơ đồ ghế cho từng suất; chạy lại không tạo trùng suất cùng phòng/giờ.
 - Lịch chiếu, bảng giá, thông tin rạp và ưu đãi.
 - Đăng ký, đăng nhập, phân quyền theo vai trò.
+- Trang tài khoản cho phép thành viên cập nhật họ tên, email và số điện thoại.
 - Chọn ghế, tạo đơn đặt vé, thanh toán bằng phương thức đã cấu hình.
 - Ví nội bộ, lịch sử đặt vé, vé điện tử và mã QR.
 - Danh sách yêu thích, đánh giá phim, thông báo.

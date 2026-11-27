@@ -83,6 +83,9 @@ switch ($route) {
     case 'auth/register':
         (new AuthController())->register();
         break;
+    case 'auth/account':
+        (new AuthController())->account();
+        break;
     case 'auth/logout':
         (new AuthController())->logout();
         break;

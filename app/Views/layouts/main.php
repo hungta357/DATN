@@ -382,6 +382,8 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
                 <span>|</span>
                 <a href="?route=notifications"><i class="bi bi-bell me-1"></i>Thông báo</a>
                 <span aria-hidden="true">|</span>
+                <a href="?route=auth/account"><i class="bi bi-person-gear me-1"></i>Tài khoản</a>
+                <span aria-hidden="true">|</span>
                 <span class="account-name-chip" title="<?= htmlspecialchars($_SESSION['user']['name'], ENT_QUOTES, 'UTF-8') ?>">
                     <i class="bi bi-person-circle" aria-hidden="true"></i>
                     <span class="account-name-text"><?= htmlspecialchars($_SESSION['user']['name']) ?></span>
