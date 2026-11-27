@@ -372,7 +372,22 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
                 <span>|</span>
                 <a href="?route=wishlist"><i class="bi bi-heart me-1"></i>Yêu thích</a>
                 <span>|</span>
-                <a href="?route=notifications"><i class="bi bi-bell me-1"></i>Thông báo</a>
+                <?php
+                $headerUnread = 0;
+                if (!empty($_SESSION['user']['id'])) {
+                    try {
+                        $headerUnread = (new \App\Models\EngagementModel())->countUnreadNotifications((int) $_SESSION['user']['id']);
+                    } catch (\Throwable $e) {
+                        $headerUnread = 0;
+                    }
+                }
+                ?>
+                <a href="?route=notifications">
+                    <i class="bi bi-bell me-1"></i>Thông báo
+                    <?php if ($headerUnread > 0): ?>
+                        <span class="badge bg-danger rounded-pill"><?= $headerUnread > 99 ? '99+' : (int) $headerUnread ?></span>
+                    <?php endif; ?>
+                </a>
                 <span aria-hidden="true">|</span>
                 <span class="account-name-chip" title="<?= htmlspecialchars($_SESSION['user']['name'], ENT_QUOTES, 'UTF-8') ?>">
                     <i class="bi bi-person-circle" aria-hidden="true"></i>
@@ -425,6 +440,11 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
                 <li class="nav-item">
                     <a class="nav-link beta-nav-link <?= $currentRoute === 'about' ? 'active' : '' ?>" href="?route=about">
                         Thông Tin Rạp
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link beta-nav-link <?= $currentRoute === 'contact' ? 'active' : '' ?>" href="?route=contact">
+                        Liên Hệ & Góp Ý
                     </a>
                 </li>
                 <li class="nav-item">

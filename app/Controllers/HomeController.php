@@ -11,7 +11,7 @@ use App\Models\UserModel;
 
 class HomeController extends BaseController
 {
-        public function index(): void
+    public function index(): void
     {
         $movieModel = new MovieModel();
         $userModel = new UserModel();
@@ -83,6 +83,7 @@ class HomeController extends BaseController
 
     /**
      * Trang LỊCH CHIẾU THEO NGÀY (Beta Cinemas style - cho 1 rạp duy nhất)
+     * Hiển thị hôm nay + 7 ngày; hỗ trợ suất chiếu sớm.
      */
     public function schedule(): void
     {
@@ -91,8 +92,10 @@ class HomeController extends BaseController
         $userModel = new UserModel();
 
         $selectedDate = $_GET['date'] ?? '';
-        $movies = $movieModel->getMovies('now_showing');
         $showsByMovie = $showModel->getSellingShowsGroupedByMovie($selectedDate ?: null);
+        $movies = method_exists($movieModel, 'getMoviesForSchedule')
+            ? $movieModel->getMoviesForSchedule(array_keys($showsByMovie))
+            : $movieModel->getMovies('now_showing');
         $cinemaInfo = $userModel->getCinemaInfo();
 
         $this->view('home/schedule', [
@@ -184,8 +187,12 @@ class HomeController extends BaseController
         }
         $user = $_SESSION['user'] ?? null;
         (new EngagementModel())->createContactMessage([
-            'user_id' => $user['id'] ?? null, 'full_name' => $name, 'email' => $email,
-            'phone' => $phone, 'subject' => $subject, 'message' => $message,
+            'user_id' => $user['id'] ?? null,
+            'full_name' => $name,
+            'email' => $email,
+            'phone' => $phone,
+            'subject' => $subject,
+            'message' => $message,
         ]);
         $this->setFlash('success', 'Cảm ơn bạn! Góp ý đã được gửi đến bộ phận chăm sóc khách hàng.');
         $this->redirect('?route=contact');
@@ -205,8 +212,30 @@ class HomeController extends BaseController
             $this->redirect('?route=home');
         }
 
+        $reviewPage = max(1, (int) ($_GET['review_page'] ?? 1));
         $shows = $showModel->getShowsByMovie($id);
-        $reviews = $engagementModel->getMovieReviews($id);
+
+        // Hỗ trợ cả getMovieReviews cũ (trả về array) và mới (phân trang)
+        $reviewResult = $engagementModel->getMovieReviews($id, $reviewPage, 5);
+        if (isset($reviewResult['items'])) {
+            $reviews = $reviewResult['items'];
+            $reviewPagination = $reviewResult;
+        } else {
+            $reviews = $reviewResult;
+            $reviewPagination = [
+                'items' => $reviews,
+                'total' => count($reviews),
+                'page' => 1,
+                'per_page' => count($reviews),
+                'total_pages' => 1,
+            ];
+        }
+
+        $userReview = null;
+        if (!empty($_SESSION['user']['id']) && method_exists($engagementModel, 'getUserReviewForMovie')) {
+            $userReview = $engagementModel->getUserReviewForMovie((int) $_SESSION['user']['id'], $id);
+        }
+
         $cinemaInfo = $userModel->getCinemaInfo();
 
         $this->view('home/movie_detail', [
@@ -214,6 +243,8 @@ class HomeController extends BaseController
             'movie' => $movie,
             'shows' => $shows,
             'reviews' => $reviews,
+            'reviewPagination' => $reviewPagination,
+            'userReview' => $userReview,
             'cinemaInfo' => $cinemaInfo,
         ]);
     }
@@ -225,10 +256,38 @@ class HomeController extends BaseController
         $rating = (int) ($_POST['rating'] ?? 10);
         $comment = trim($_POST['comment'] ?? '');
 
-        $engagementModel = new EngagementModel();
-        $engagementModel->saveReview((int) $user['id'], $movieId, $rating, $comment);
+        if ($movieId <= 0 || $comment === '') {
+            $this->setFlash('danger', 'Vui lòng nhập nội dung đánh giá.');
+            $this->redirect('?route=movie/detail&id=' . $movieId);
+        }
 
-        $this->setFlash('success', 'Cảm ơn bạn đã gửi đánh giá bộ phim!');
+        $engagementModel = new EngagementModel();
+        $result = $engagementModel->saveReview((int) $user['id'], $movieId, $rating, $comment);
+
+        if ($result === 'updated') {
+            $this->setFlash('success', 'Đã cập nhật đánh giá của bạn (mỗi tài khoản chỉ 1 đánh giá / phim).');
+        } else {
+            $this->setFlash('success', 'Cảm ơn bạn đã gửi đánh giá bộ phim!');
+        }
+        $this->redirect('?route=movie/detail&id=' . $movieId);
+    }
+
+    public function deleteReview(): void
+    {
+        $user = $this->requireAuth();
+        $reviewId = (int) ($_POST['review_id'] ?? 0);
+        $movieId = (int) ($_POST['movie_id'] ?? 0);
+
+        $engagementModel = new EngagementModel();
+        $ok = method_exists($engagementModel, 'deleteReview')
+            ? $engagementModel->deleteReview((int) $user['id'], $reviewId)
+            : false;
+
+        if ($ok) {
+            $this->setFlash('success', 'Đã xóa đánh giá của bạn.');
+        } else {
+            $this->setFlash('danger', 'Không thể xóa đánh giá (chỉ được xóa đánh giá của chính bạn).');
+        }
         $this->redirect('?route=movie/detail&id=' . $movieId);
     }
 
@@ -256,21 +315,53 @@ class HomeController extends BaseController
         ]);
     }
 
+    /**
+     * Thông báo khách hàng: phân trang, đánh dấu 1 / tất cả đã đọc
+     */
     public function notifications(): void
     {
         $user = $this->requireAuth();
         $engagementModel = new EngagementModel();
+        $userId = (int) $user['id'];
 
         if (isset($_GET['mark_read'])) {
-            $engagementModel->markAllNotificationsRead((int) $user['id']);
+            $engagementModel->markAllNotificationsRead($userId);
             $this->setFlash('success', 'Đã đánh dấu đọc tất cả thông báo.');
             $this->redirect('?route=notifications');
         }
 
-        $notifications = $engagementModel->getUserNotifications((int) $user['id']);
+        if (isset($_GET['read_id']) && method_exists($engagementModel, 'markNotificationRead')) {
+            $engagementModel->markNotificationRead($userId, (int) $_GET['read_id']);
+            $this->redirect('?route=notifications&page=' . max(1, (int) ($_GET['page'] ?? 1)));
+        }
+
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $result = $engagementModel->getUserNotifications($userId, $page, 10);
+
+        // Hỗ trợ cả method cũ (trả về list) và mới (có phân trang)
+        if (isset($result['items'])) {
+            $notifications = $result['items'];
+            $pagination = $result;
+        } else {
+            $notifications = $result;
+            $pagination = [
+                'items' => $notifications,
+                'total' => count($notifications),
+                'page' => 1,
+                'per_page' => count($notifications),
+                'total_pages' => 1,
+            ];
+        }
+
+        $unreadCount = method_exists($engagementModel, 'countUnreadNotifications')
+            ? $engagementModel->countUnreadNotifications($userId)
+            : 0;
+
         $this->view('home/notifications', [
             'pageTitle' => 'Thông báo của tôi',
             'notifications' => $notifications,
+            'pagination' => $pagination,
+            'unreadCount' => $unreadCount,
         ]);
     }
 }

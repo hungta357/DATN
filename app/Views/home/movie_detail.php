@@ -18,21 +18,9 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
             <div class="col-md-4 col-lg-3">
                 <div class="beta-poster-wrap">
                     <span class="beta-age-badge <?= $ageClass ?>"><?= htmlspecialchars($age) ?></span>
-                    <?php
-                    $poster = $movie['poster_path'] ?? '';
-                    if ($poster === '' || (!str_starts_with($poster, 'http') && !str_starts_with($poster, '/'))) {
-                        $poster = '/public/images/posters/inside-out-2.svg';
-                    }
-                    // Nếu đường dẫn bắt đầu bằng public/ thì thêm dấu / phía trước
-                    if (str_starts_with($poster, 'public/')) {
-                        $poster = '/' . $poster;
-                    }
-                    ?>
-                    <img src="<?= htmlspecialchars($poster) ?>"
-                        alt="<?= htmlspecialchars($movie['title']) ?>"
-                        class="w-100"
-                        style="aspect-ratio: 2/3; object-fit: cover;"
-                        onerror="this.onerror=null;this.src='/public/images/posters/dune-part-two.svg';">
+                    <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'public/images/posters/dune-part-two.svg') ?>"
+                         alt="<?= htmlspecialchars($movie['title']) ?>"
+                         onerror="this.onerror=null;this.src='public/images/posters/dune-part-two.svg';">
                 </div>
                 <?php if (!empty($movie['trailer_url'])): ?>
                     <button type="button" class="btn btn-warning w-100 btn-sm fw-bold mt-2 text-dark" data-bs-toggle="modal" data-bs-target="#trailerModal">
@@ -40,7 +28,7 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
                     </button>
                 <?php endif; ?>
                 <form method="POST" action="?route=wishlist/toggle" class="mt-2">
-                    <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                     <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
                     <button type="submit" class="btn btn-outline-danger w-100 btn-sm fw-semibold">
                         <i class="bi bi-heart-fill me-1"></i> Lưu vào Phim Yêu Thích
@@ -93,26 +81,74 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
         <h5 class="oswald-font fw-bold text-uppercase mb-3" style="color: var(--beta-blue);">
             <i class="bi bi-chat-dots-fill text-warning me-1"></i> ĐÁNH GIÁ TỪ KHÁN GIẢ TẠI RẠP
         </h5>
+
+        <?php
+        $userReview = $userReview ?? null;
+        $reviewPagination = $reviewPagination ?? ['total' => 0, 'page' => 1, 'total_pages' => 1];
+        $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
+        ?>
+
         <?php if (!empty($_SESSION['user'])): ?>
-            <form method="POST" action="?route=movie/review" class="mb-4 pb-3 border-bottom">
-                <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
-                <div class="row g-2">
-                    <div class="col-md-3">
-                        <select name="rating" class="form-select form-select-sm">
-                            <?php for ($i = 10; $i >= 1; $i--): ?>
-                                <option value="<?= $i ?>">★ <?= $i ?> / 10 điểm</option>
-                            <?php endfor; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-7">
-                        <input type="text" name="comment" class="form-control form-control-sm" required placeholder="Nhập cảm nhận của bạn về bộ phim...">
-                    </div>
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-beta-buy btn-sm w-100">Gửi đánh giá</button>
+            <?php if ($userReview): ?>
+                <div class="alert alert-light border mb-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="small text-muted mb-1">Đánh giá của bạn (mỗi tài khoản chỉ 1 đánh giá / phim)</div>
+                            <strong style="color: var(--beta-blue);"><?= htmlspecialchars($userReview['user_name'] ?? $_SESSION['user']['name']) ?></strong>
+                            <span class="badge bg-warning text-dark ms-1">★ <?= (int) $userReview['rating'] ?>/10</span>
+                            <div class="small text-secondary mt-1"><?= htmlspecialchars($userReview['comment'] ?? '') ?></div>
+                        </div>
+                        <form method="POST" action="?route=movie/review/delete" onsubmit="return confirm('Xóa đánh giá của bạn?');">
+                            <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="review_id" value="<?= (int) $userReview['id'] ?>">
+                            <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Xóa</button>
+                        </form>
                     </div>
                 </div>
-            </form>
+                <form method="POST" action="?route=movie/review" class="mb-4 pb-3 border-bottom">
+                    <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
+                    <div class="small text-muted mb-2">Cập nhật đánh giá (vẫn chỉ 1 đánh giá / tài khoản)</div>
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <select name="rating" class="form-select form-select-sm">
+                                <?php for ($i = 10; $i >= 1; $i--): ?>
+                                    <option value="<?= $i ?>" <?= (int) $userReview['rating'] === $i ? 'selected' : '' ?>>★ <?= $i ?> / 10 điểm</option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-7">
+                            <input type="text" name="comment" class="form-control form-control-sm" required
+                                   value="<?= htmlspecialchars($userReview['comment'] ?? '') ?>"
+                                   placeholder="Nhập cảm nhận của bạn về bộ phim...">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-beta-buy btn-sm w-100">Cập nhật</button>
+                        </div>
+                    </div>
+                </form>
+            <?php else: ?>
+                <form method="POST" action="?route=movie/review" class="mb-4 pb-3 border-bottom">
+                    <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <select name="rating" class="form-select form-select-sm">
+                                <?php for ($i = 10; $i >= 1; $i--): ?>
+                                    <option value="<?= $i ?>">★ <?= $i ?> / 10 điểm</option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-7">
+                            <input type="text" name="comment" class="form-control form-control-sm" required placeholder="Nhập cảm nhận của bạn về bộ phim...">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-beta-buy btn-sm w-100">Gửi đánh giá</button>
+                        </div>
+                    </div>
+                </form>
+            <?php endif; ?>
         <?php endif; ?>
 
         <?php if (empty($reviews)): ?>
@@ -120,13 +156,41 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
         <?php else: ?>
             <?php foreach ($reviews as $rv): ?>
                 <div class="mb-2 pb-2 border-bottom">
-                    <div class="d-flex justify-content-between">
-                        <strong style="color: var(--beta-blue);"><?= htmlspecialchars($rv['user_name']) ?></strong>
-                        <span class="badge bg-warning text-dark">★ <?= (int) $rv['rating'] ?>/10</span>
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong style="color: var(--beta-blue);"><?= htmlspecialchars($rv['user_name']) ?></strong>
+                            <span class="badge bg-warning text-dark ms-1">★ <?= (int) $rv['rating'] ?>/10</span>
+                            <div class="small text-secondary"><?= htmlspecialchars($rv['comment'] ?? '') ?></div>
+                        </div>
+                        <?php if ($currentUserId > 0 && (int) $rv['user_id'] === $currentUserId): ?>
+                            <form method="POST" action="?route=movie/review/delete" onsubmit="return confirm('Xóa đánh giá của bạn?');">
+                                <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                <input type="hidden" name="review_id" value="<?= (int) $rv['id'] ?>">
+                                <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
+                                <button type="submit" class="btn btn-link btn-sm text-danger p-0">Xóa</button>
+                            </form>
+                        <?php endif; ?>
                     </div>
-                    <div class="small text-secondary"><?= htmlspecialchars($rv['comment'] ?? '') ?></div>
                 </div>
             <?php endforeach; ?>
+
+            <?php if (($reviewPagination['total_pages'] ?? 1) > 1): ?>
+                <nav class="mt-3" aria-label="Phân trang đánh giá">
+                    <ul class="pagination pagination-sm mb-0 justify-content-center">
+                        <?php
+                        $rp = (int) $reviewPagination['page'];
+                        $rtp = (int) $reviewPagination['total_pages'];
+                        for ($p = 1; $p <= $rtp; $p++):
+                        ?>
+                            <li class="page-item <?= $p === $rp ? 'active' : '' ?>">
+                                <a class="page-link" href="?route=movie/detail&id=<?= (int) $movie['id'] ?>&review_page=<?= $p ?>">
+                                    <?= $p ?>
+                                </a>
+                            </li>
+                        <?php endfor; ?>
+                    </ul>
+                </nav>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>

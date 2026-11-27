@@ -94,6 +94,9 @@ switch ($route) {
     case 'movie/review':
         (new HomeController())->submitReview();
         break;
+    case 'movie/review/delete':
+        (new HomeController())->deleteReview();
+        break;
     case 'wishlist/toggle':
         (new HomeController())->toggleWishlist();
         break;
