@@ -345,6 +345,56 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
         .account-logout-button:hover { background:#a83232; border-color:#a83232; color:#fff !important; }
         .account-logout-button:focus-visible { outline:2px solid #f2d99f; outline-offset:2px; }
         @media(max-width:767.98px) { .cine-hero{min-height:480px}.cine-hero-content{padding-top:72px;padding-bottom:72px}.beta-topbar .container{gap:8px}.beta-topbar .container>div:first-child{max-width:100%}.beta-topbar .container>div:last-child{width:100%;justify-content:flex-start!important;gap:8px!important}.account-name-chip{max-width:160px}.beta-nav-link{padding:9px 4px !important}.cine-section{padding:44px 0} }
+
+
+        /* ===== CINENOW: HOAN THIEN 4 BUOC DAT VE (giu nguyen palette hien tai) ===== */
+        .cine-detail-hero, .cine-booking-panel { position:relative; }
+        .beta-time-slot { min-width:118px; padding:12px 15px; border-radius:12px; background:#282722; border:1px solid rgba(198,161,91,.25); color:#eee7d9; }
+        .beta-time-slot .slot-hour { color:var(--premium-gold); font-size:21px; }
+        .beta-time-slot .small { color:#d4cbbb !important; }
+        .beta-time-slot .slot-seats { color:#aaa397; margin-top:3px; }
+        .beta-time-slot:hover { background:var(--beta-gradient); border-color:#c6a15b; color:#211b10; transform:translateY(-3px); box-shadow:0 10px 22px rgba(174,132,58,.2); }
+        .beta-time-slot:hover .slot-hour,.beta-time-slot:hover .small,.beta-time-slot:hover .slot-seats { color:#211b10 !important; }
+        .cinenow-date-card { background:#24231f; border-color:rgba(198,161,91,.28); color:#eee7d9; }
+        .cinenow-date-weekday,.cinenow-date-month { color:#bdb4a4; }
+        .cinenow-date-number { color:#f4ead5; }
+        .cinenow-date-card.is-active { background:#302b20; border-color:var(--premium-gold); box-shadow:0 0 0 2px rgba(198,161,91,.12),0 8px 20px rgba(0,0,0,.12); }
+        .cinenow-date-card.is-active .cinenow-date-weekday,.cinenow-date-card.is-active .cinenow-date-number { color:var(--premium-gold); }
+        .seat-box { width:clamp(30px,3.4vw,44px); height:38px; margin:3px; border-radius:9px; font-size:11px; letter-spacing:-.02em; box-shadow:inset 0 -2px 0 rgba(0,0,0,.08); }
+        .seat-box:not(.seat-held):not(.seat-booked):not(.seat-blocked) { cursor:pointer; }
+        .seat-available { background:#d7d2c8; color:#38342d; }
+        .seat-vip { background:#bd9149; color:#17130c; }
+        .seat-couple { background:#9f5475; color:#fff; }
+        .seat-selected { background:#b58a43 !important; color:#17130c !important; outline:2px solid #e6cf9e; outline-offset:1px; }
+        .seat-held { background:#6d9ca3; color:#fff; }
+        .seat-booked,.seat-blocked { background:#9b5551; color:#fff; }
+        .screen-bar { max-width:82%; margin-left:auto; margin-right:auto; height:18px; border-radius:50% 50% 8px 8px / 100% 100% 0 0; box-shadow:0 9px 18px rgba(198,161,91,.13); }
+        #bookingForm .card { overflow:hidden; }
+        #bookingForm .sticky-top { border:1px solid rgba(198,161,91,.22) !important; box-shadow:0 16px 38px rgba(31,27,19,.12) !important; }
+        #bookingForm .sticky-top .card-body { background:#fbfaf7; }
+        #bookingForm .concession-input { max-width:82px; min-height:38px; font-weight:700; }
+        #bookingForm .seat-box:focus-within { outline:2px solid var(--premium-gold); outline-offset:2px; }
+        .cinenow-checkout-ticket { border:1px dashed rgba(181,138,67,.55); border-radius:14px; }
+        main .list-group-item { border-color:#eee8dc; padding:13px 15px; }
+        main .form-check:has(input:checked) { border-color:var(--premium-gold) !important; background:#f6f0e3 !important; box-shadow:0 0 0 2px rgba(198,161,91,.12); }
+        main .btn { transition:transform .18s ease,box-shadow .18s ease,filter .18s ease; }
+        main .btn:focus-visible,main a:focus-visible,main input:focus-visible,main select:focus-visible { outline:2px solid var(--premium-gold); outline-offset:3px; }
+        @media (max-width: 991.98px) { #bookingForm .sticky-top { position:static !important; top:auto !important; } }
+        @media (max-width: 575.98px) {
+            main > .container { padding-top:18px; padding-bottom:24px; }
+            .beta-time-slot { min-width:calc(50% - 8px); flex:1 1 calc(50% - 8px); padding:10px 8px; }
+            .seat-box { width:29px; height:32px; margin:2px; font-size:9px; border-radius:7px; }
+            #bookingForm .card-body,#bookingForm .card.p-4 { padding:16px !important; }
+            .cinenow-date-card { flex-basis:66px; min-height:74px; }
+            .cinenow-date-number { font-size:24px; }
+        }
+        @media print {
+            body { background:#fff !important; }
+            .beta-topbar,.beta-navbar,.beta-footer,.btn,form,.breadcrumb { display:none !important; }
+            main .card { box-shadow:none !important; border:1px solid #ddd !important; break-inside:avoid; }
+            main { color:#111 !important; }
+        }
+
     </style>
 </head>
 <body>
