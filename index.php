@@ -82,6 +82,12 @@ switch ($route) {
     case 'about':
         (new HomeController())->about();
         break;
+    case 'cinema/review':
+        (new HomeController())->submitCinemaReview();
+        break;
+    case 'cinema/review/delete':
+        (new HomeController())->deleteCinemaReview();
+        break;
     case 'contact':
         (new HomeController())->contact();
         break;

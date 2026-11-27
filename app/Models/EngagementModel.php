@@ -284,5 +284,117 @@ class EngagementModel extends BaseModel
         ]);
         return (int) $this->db->lastInsertId();
     }
+
+    // --- 7.6 CINEMA / FACILITY REVIEWS (ĐÁNH GIÁ RẠP & CƠ SỞ VẬT CHẤT) ---
+
+    public function getUserCinemaReview(int $userId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT cr.*, u.name AS user_name
+            FROM cinema_reviews cr
+            INNER JOIN users u ON u.id = cr.user_id
+            WHERE cr.user_id = :uid
+            LIMIT 1
+        ");
+        $stmt->execute(['uid' => $userId]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
+    public function getCinemaReviews(int $page = 1, int $perPage = 5): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(50, $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $total = (int) $this->db->query("SELECT COUNT(*) FROM cinema_reviews WHERE status = 'approved'")->fetchColumn();
+
+        $sql = "SELECT cr.*, u.name AS user_name
+                FROM cinema_reviews cr
+                INNER JOIN users u ON u.id = cr.user_id
+                WHERE cr.status = 'approved'
+                ORDER BY cr.created_at DESC
+                LIMIT {$perPage} OFFSET {$offset}";
+        $items = $this->db->query($sql)->fetchAll();
+
+        return [
+            'items' => $items,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => max(1, (int) ceil($total / $perPage)),
+        ];
+    }
+
+    /** Điểm trung bình các tiêu chí đánh giá rạp. */
+    public function getCinemaReviewStats(): array
+    {
+        $sql = "SELECT
+                    COUNT(*) AS total_reviews,
+                    ROUND(AVG(rating_overall), 1) AS avg_overall,
+                    ROUND(AVG(rating_facility), 1) AS avg_facility,
+                    ROUND(AVG(rating_cleanliness), 1) AS avg_cleanliness,
+                    ROUND(AVG(rating_sound), 1) AS avg_sound,
+                    ROUND(AVG(rating_service), 1) AS avg_service
+                FROM cinema_reviews
+                WHERE status = 'approved'";
+        $row = $this->db->query($sql)->fetch() ?: [];
+        return [
+            'total_reviews' => (int) ($row['total_reviews'] ?? 0),
+            'avg_overall' => (float) ($row['avg_overall'] ?? 0),
+            'avg_facility' => (float) ($row['avg_facility'] ?? 0),
+            'avg_cleanliness' => (float) ($row['avg_cleanliness'] ?? 0),
+            'avg_sound' => (float) ($row['avg_sound'] ?? 0),
+            'avg_service' => (float) ($row['avg_service'] ?? 0),
+        ];
+    }
+
+    /**
+     * Mỗi tài khoản chỉ 1 đánh giá rạp.
+     * @return string 'created'|'updated'
+     */
+    public function saveCinemaReview(int $userId, array $data): string
+    {
+        $clamp = static fn($v) => max(1, min(10, (int) $v));
+        $payload = [
+            'uid' => $userId,
+            'rating_overall' => $clamp($data['rating_overall'] ?? 10),
+            'rating_facility' => $clamp($data['rating_facility'] ?? 10),
+            'rating_cleanliness' => $clamp($data['rating_cleanliness'] ?? 10),
+            'rating_sound' => $clamp($data['rating_sound'] ?? 10),
+            'rating_service' => $clamp($data['rating_service'] ?? 10),
+            'comment' => trim((string) ($data['comment'] ?? '')),
+        ];
+
+        $existing = $this->getUserCinemaReview($userId);
+        if ($existing) {
+            $sql = "UPDATE cinema_reviews SET
+                        rating_overall = :rating_overall,
+                        rating_facility = :rating_facility,
+                        rating_cleanliness = :rating_cleanliness,
+                        rating_sound = :rating_sound,
+                        rating_service = :rating_service,
+                        comment = :comment,
+                        status = 'approved',
+                        updated_at = NOW()
+                    WHERE user_id = :uid";
+            $this->db->prepare($sql)->execute($payload);
+            return 'updated';
+        }
+
+        $sql = "INSERT INTO cinema_reviews
+                    (user_id, rating_overall, rating_facility, rating_cleanliness, rating_sound, rating_service, comment, status, created_at, updated_at)
+                VALUES
+                    (:uid, :rating_overall, :rating_facility, :rating_cleanliness, :rating_sound, :rating_service, :comment, 'approved', NOW(), NOW())";
+        $this->db->prepare($sql)->execute($payload);
+        return 'created';
+    }
+
+    public function deleteCinemaReview(int $userId, int $reviewId): bool
+    {
+        $stmt = $this->db->prepare("DELETE FROM cinema_reviews WHERE id = :id AND user_id = :uid");
+        $stmt->execute(['id' => $reviewId, 'uid' => $userId]);
+        return $stmt->rowCount() > 0;
+    }
 }
 

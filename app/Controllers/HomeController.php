@@ -148,21 +148,97 @@ class HomeController extends BaseController
     }
 
     /**
-     * Trang THÔNG TIN RẠP (Mô hình 1 rạp chiếu lẻ duy nhất với nhiều phòng chiếu)
+     * Trang THÔNG TIN RẠP + đánh giá cơ sở vật chất / rạp
      */
     public function about(): void
     {
         $userModel = new UserModel();
         $roomModel = new RoomModel();
+        $engagementModel = new EngagementModel();
 
         $cinemaInfo = $userModel->getCinemaInfo();
         $rooms = $roomModel->all('id ASC');
+
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $reviewData = method_exists($engagementModel, 'getCinemaReviews')
+            ? $engagementModel->getCinemaReviews($page, 5)
+            : ['items' => [], 'total' => 0, 'page' => 1, 'per_page' => 5, 'total_pages' => 1];
+        $reviewStats = method_exists($engagementModel, 'getCinemaReviewStats')
+            ? $engagementModel->getCinemaReviewStats()
+            : [
+                'total_reviews' => 0,
+                'avg_overall' => 0,
+                'avg_facility' => 0,
+                'avg_cleanliness' => 0,
+                'avg_sound' => 0,
+                'avg_service' => 0,
+            ];
+
+        $userCinemaReview = null;
+        if (!empty($_SESSION['user']['id']) && method_exists($engagementModel, 'getUserCinemaReview')) {
+            $userCinemaReview = $engagementModel->getUserCinemaReview((int) $_SESSION['user']['id']);
+        }
 
         $this->view('home/about', [
             'pageTitle' => 'Thông tin rạp - ' . $cinemaInfo['name'],
             'cinemaInfo' => $cinemaInfo,
             'rooms' => $rooms,
+            'cinemaReviews' => $reviewData['items'],
+            'cinemaReviewPagination' => $reviewData,
+            'cinemaReviewStats' => $reviewStats,
+            'userCinemaReview' => $userCinemaReview,
         ]);
+    }
+
+    public function submitCinemaReview(): void
+    {
+        $user = $this->requireAuth();
+        $engagementModel = new EngagementModel();
+
+        $comment = trim($_POST['comment'] ?? '');
+        if ($comment === '') {
+            $this->setFlash('danger', 'Vui lòng nhập nhận xét về rạp.');
+            $this->redirect('?route=about#cinema-reviews');
+        }
+
+        if (!method_exists($engagementModel, 'saveCinemaReview')) {
+            $this->setFlash('danger', 'Chức năng đánh giá rạp chưa được cài đặt (thiếu method trên EngagementModel).');
+            $this->redirect('?route=about#cinema-reviews');
+        }
+
+        $result = $engagementModel->saveCinemaReview((int) $user['id'], [
+            'rating_overall' => $_POST['rating_overall'] ?? 10,
+            'rating_facility' => $_POST['rating_facility'] ?? 10,
+            'rating_cleanliness' => $_POST['rating_cleanliness'] ?? 10,
+            'rating_sound' => $_POST['rating_sound'] ?? 10,
+            'rating_service' => $_POST['rating_service'] ?? 10,
+            'comment' => $comment,
+        ]);
+
+        if ($result === 'updated') {
+            $this->setFlash('success', 'Đã cập nhật đánh giá rạp của bạn (mỗi tài khoản chỉ 1 đánh giá).');
+        } else {
+            $this->setFlash('success', 'Cảm ơn bạn đã đánh giá rạp và cơ sở vật chất!');
+        }
+        $this->redirect('?route=about#cinema-reviews');
+    }
+
+    public function deleteCinemaReview(): void
+    {
+        $user = $this->requireAuth();
+        $reviewId = (int) ($_POST['review_id'] ?? 0);
+
+        $engagementModel = new EngagementModel();
+        $ok = method_exists($engagementModel, 'deleteCinemaReview')
+            ? $engagementModel->deleteCinemaReview((int) $user['id'], $reviewId)
+            : false;
+
+        if ($ok) {
+            $this->setFlash('success', 'Đã xóa đánh giá rạp của bạn.');
+        } else {
+            $this->setFlash('danger', 'Không thể xóa đánh giá (chỉ xóa được đánh giá của bạn).');
+        }
+        $this->redirect('?route=about#cinema-reviews');
     }
 
     public function contact(): void
