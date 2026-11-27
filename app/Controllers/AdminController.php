@@ -172,7 +172,19 @@ class AdminController extends BaseController
         $slug = trim($_POST['slug'] ?? '') ?: ($baseSlug . '-' . rand(100, 999));
 
         $posterPath = trim($_POST['poster_path'] ?? '');
-        if ($posterPath !== '' && !str_starts_with($posterPath, 'http://') && !str_starts_with($posterPath, 'https://') && !str_starts_with($posterPath, 'public/') && !is_file(__DIR__ . '/../../' . ltrim($posterPath, '/'))) {
+
+        // Chỉ chấp nhận link online hoặc đường dẫn bắt đầu bằng /public/ hoặc public/
+        if ($posterPath !== '') {
+            if (
+                !str_starts_with($posterPath, 'http://') &&
+                !str_starts_with($posterPath, 'https://') &&
+                !str_starts_with($posterPath, '/public/') &&
+                !str_starts_with($posterPath, 'public/')
+            ) {
+                // Nếu chỉ ghi tên file thì tự thêm đường dẫn
+                $posterPath = 'public/images/posters/' . ltrim($posterPath, '/');
+            }
+        } else {
             $posterPath = 'public/images/posters/dune-part-two.svg';
         }
 
@@ -189,7 +201,7 @@ class AdminController extends BaseController
             'title' => $title,
             'title_vi' => trim($_POST['title_vi'] ?? '') ?: null,
             'overview' => trim($_POST['overview'] ?? '') ?: null,
-            'poster_path' => $posterPath ?: 'public/images/posters/dune-part-two.svg',
+            'poster_path' => $posterPath,
             'trailer_url' => trim($_POST['trailer_url'] ?? '') ?: null,
             'release_date' => $releaseDate,
             'runtime' => max(30, (int) ($_POST['runtime'] ?? 120)),

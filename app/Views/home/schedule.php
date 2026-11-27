@@ -11,7 +11,7 @@
     <!-- THANH CHỌN NGÀY KIỂU BETA CINEMAS -->
     <div class="d-flex justify-content-center flex-wrap gap-2 mb-4 pb-3 border-bottom">
         <a href="?route=schedule"
-           class="btn <?= empty($selectedDate) ? 'btn-beta-buy' : 'btn-outline-secondary' ?> px-3 py-2">
+            class="btn <?= empty($selectedDate) ? 'btn-beta-buy' : 'btn-outline-secondary' ?> px-3 py-2">
             Tất cả ngày
         </a>
         <?php
@@ -22,7 +22,7 @@
             $dayLabel = date('d/m', $ts) . ' - ' . $daysOfWeek[(int) date('w', $ts)];
         ?>
             <a href="?route=schedule&date=<?= $dateVal ?>"
-               class="btn <?= ($selectedDate === $dateVal) ? 'btn-beta-buy' : 'btn-outline-secondary' ?> px-3 py-2 oswald-font">
+                class="btn <?= ($selectedDate === $dateVal) ? 'btn-beta-buy' : 'btn-outline-secondary' ?> px-3 py-2 oswald-font">
                 <?= $dayLabel ?>
             </a>
         <?php endfor; ?>
@@ -40,13 +40,23 @@
         ?>
         <div class="card border-0 shadow-sm mb-4 p-3 p-md-4 bg-white rounded-4">
             <div class="row g-4 align-items-center">
-                <div class="col-md-3 col-lg-2">
-                    <a href="?route=movie/detail&id=<?= (int) $movie['id'] ?>" class="beta-poster-wrap d-block">
-                        <span class="beta-age-badge <?= $ageClass ?>"><?= htmlspecialchars($age) ?></span>
-                        <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'public/images/posters/dune-part-two.svg') ?>"
-                             alt="<?= htmlspecialchars($movie['title']) ?>"
-                             onerror="this.onerror=null;this.src='public/images/posters/dune-part-two.svg';">
-                    </a>
+                <div class="beta-poster-wrap">
+                    <span class="beta-age-badge <?= $ageClass ?>"><?= htmlspecialchars($age) ?></span>
+                    <?php
+                    $poster = $movie['poster_path'] ?? '';
+                    if ($poster === '' || (!str_starts_with($poster, 'http') && !str_starts_with($poster, '/'))) {
+                        $poster = '/public/images/posters/inside-out-2.svg';
+                    }
+                    // Nếu đường dẫn bắt đầu bằng public/ thì thêm dấu / phía trước
+                    if (str_starts_with($poster, 'public/')) {
+                        $poster = '/' . $poster;
+                    }
+                    ?>
+                    <img src="<?= htmlspecialchars($poster) ?>"
+                        alt="<?= htmlspecialchars($movie['title']) ?>"
+                        class="w-100"
+                        style="aspect-ratio: 2/3; object-fit: cover;"
+                        onerror="this.onerror=null;this.src='/public/images/posters/dune-part-two.svg';">
                 </div>
                 <div class="col-md-9 col-lg-10">
                     <h4 class="fw-bold mb-1">
@@ -82,4 +92,3 @@
         </div>
     <?php endforeach; ?>
 </div>
-
