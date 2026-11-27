@@ -130,5 +130,57 @@ class MovieModel extends BaseModel
             return 'hidden';
         }
     }
-}
 
+    /**
+     * Tự chuyển phim coming_soon → now_showing khi đã đến ngày phát hành (release_date).
+     * Trả về danh sách id phim vừa được chuyển.
+     */
+    public function promoteMoviesDueForRelease(): array
+    {
+        $today = date('Y-m-d');
+        $stmt = $this->db->prepare("
+            SELECT id FROM movies
+            WHERE status = 'coming_soon'
+              AND release_date IS NOT NULL
+              AND release_date <= :today
+        ");
+        $stmt->execute(['today' => $today]);
+        $ids = array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+
+        if (empty($ids)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $upd = $this->db->prepare("UPDATE movies SET status = 'now_showing', updated_at = NOW() WHERE id IN ({$placeholders})");
+        $upd->execute($ids);
+
+        return $ids;
+    }
+
+    /**
+     * Lấy phim đang chiếu + phim có suất chiếu mở bán trong khoảng ngày (phục vụ xuất chiếu sớm).
+     * @param array $movieIdsFromShows danh sách movie_id đã có suất trong khoảng xem
+     */
+    public function getMoviesForSchedule(array $movieIdsFromShows = []): array
+    {
+        $movieIdsFromShows = array_values(array_unique(array_filter(array_map('intval', $movieIdsFromShows))));
+
+        if (empty($movieIdsFromShows)) {
+            return $this->getMovies('now_showing');
+        }
+
+        $placeholders = implode(',', array_fill(0, count($movieIdsFromShows), '?'));
+        $sql = "SELECT m.*, GROUP_CONCAT(g.name SEPARATOR ', ') AS genre_names
+                FROM movies m
+                LEFT JOIN movie_genres mg ON mg.movie_id = m.id
+                LEFT JOIN genres g ON g.id = mg.genre_id
+                WHERE m.status = 'now_showing'
+                   OR (m.status = 'coming_soon' AND m.id IN ({$placeholders}))
+                GROUP BY m.id
+                ORDER BY m.release_date DESC, m.id DESC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($movieIdsFromShows);
+        return $stmt->fetchAll();
+    }
+}

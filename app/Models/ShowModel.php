@@ -50,10 +50,18 @@ class ShowModel extends BaseModel
 
     /**
      * Lấy tất cả suất chiếu đang mở bán nhóm theo movie_id (phục vụ popup MUA VÉ nhanh & trang Lịch chiếu theo ngày kiểu Beta Cinema)
+     * Hỗ trợ xuất chiếu sớm: suất của phim coming_soon vẫn hiện khi đến đúng ngày.
      */
     public function getSellingShowsGroupedByMovie(?string $date = null): array
     {
-        // Đảm bảo các phim đang chiếu đều có suất chiếu mở bán trong tương lai
+        // Tự chuyển phim sắp chiếu → đang chiếu khi đã đến ngày phát hành
+        $movieModel = new MovieModel();
+        $promotedIds = $movieModel->promoteMoviesDueForRelease();
+        foreach ($promotedIds as $pid) {
+            $this->ensureUpcomingShowsForMovie((int) $pid, 65000, 3);
+        }
+
+        // Đảm bảo các phim đang chiếu đều có suất chiếu mở bán trong 7 ngày tới
         $stmtMissing = $this->db->query("
             SELECT m.id
             FROM movies m
@@ -69,6 +77,9 @@ class ShowModel extends BaseModel
         foreach ($missingMovieIds as $mid) {
             $this->ensureUpcomingShowsForMovie((int) $mid, 65000, 3);
         }
+
+        // Suất đã lên lịch (scheduled) trong cửa sổ hôm nay + 7 ngày → mở bán (selling)
+        $this->activateScheduledShowsInWindow(7);
 
         $whereDate = '';
         $params = [];
@@ -101,6 +112,24 @@ class ShowModel extends BaseModel
             $grouped[(int) $row['movie_id']][] = $row;
         }
         return $grouped;
+    }
+
+    /**
+     * Xuất chiếu sớm: khi suất (status=scheduled) bước vào cửa sổ hôm nay + $days ngày,
+     * tự chuyển sang selling để khách đặt vé được ngay.
+     */
+    public function activateScheduledShowsInWindow(int $days = 7): int
+    {
+        $days = max(1, min(14, $days));
+        $windowEnd = date('Y-m-d H:i:s', strtotime("+{$days} days"));
+        $sql = "UPDATE shows
+                SET status = 'selling', updated_at = NOW()
+                WHERE status = 'scheduled'
+                  AND start_time > NOW()
+                  AND start_time <= :window_end";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['window_end' => $windowEnd]);
+        return $stmt->rowCount();
     }
 
     public function getAllShowsWithDetails(): array
