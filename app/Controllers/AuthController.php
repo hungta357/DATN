@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Core\BaseController;
+use App\Models\AuthSecurityModel;
 use App\Models\UserModel;
 
 class AuthController extends BaseController
@@ -20,13 +21,29 @@ class AuthController extends BaseController
             }
 
             $email = strtolower(trim($emailInput));
+            if ($email === 'admin') {
+                $email = 'admin@cinema.vn';
+            }
+
+            $securityModel = new AuthSecurityModel();
+            $attemptKey = hash('sha256', $email . "\0" . (string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+            $lockRemaining = $securityModel->getLoginLockRemaining($attemptKey);
+            if ($lockRemaining > 0) {
+                $this->rememberAuthInput(['email' => $emailInput]);
+                $this->setFlash('warning', 'Bạn đã đăng nhập sai quá nhiều lần. Vui lòng thử lại sau ' . (int) ceil($lockRemaining / 60) . ' phút.');
+                $this->redirect('?route=auth/login');
+            }
 
             $userModel = new UserModel();
             $user = $userModel->findByEmail($email);
 
             if (!$user || empty($user['password']) || !password_verify($password, (string) $user['password'])) {
+                $lockRemaining = $securityModel->recordFailedLogin($attemptKey);
                 $this->rememberAuthInput(['email' => $emailInput]);
-                $this->setFlash('danger', 'Tài khoản hoặc mật khẩu không chính xác.');
+                $message = $lockRemaining > 0
+                    ? 'Bạn đã đăng nhập sai 5 lần. Tài khoản tạm khóa trong 15 phút.'
+                    : 'Tài khoản hoặc mật khẩu không chính xác.';
+                $this->setFlash($lockRemaining > 0 ? 'warning' : 'danger', $message);
                 $this->redirect('?route=auth/login');
             }
 
@@ -36,6 +53,7 @@ class AuthController extends BaseController
                 $this->redirect('?route=auth/login');
             }
 
+            $securityModel->clearLoginFailures($attemptKey);
             session_regenerate_id(true);
             unset($_SESSION['auth_old_input']);
             unset($user['password']);

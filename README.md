@@ -60,6 +60,7 @@ Sau khi chạy `php setup.php`:
 - Lịch chiếu, bảng giá, thông tin rạp và ưu đãi.
 - Đăng ký, đăng nhập, phân quyền theo vai trò.
 - Trang tài khoản cho phép thành viên cập nhật họ tên, email và số điện thoại.
+- Đăng nhập sai 5 lần sẽ bị tạm khóa 15 phút theo tài khoản và địa chỉ IP.
 - Chọn ghế, tạo đơn đặt vé, thanh toán bằng phương thức đã cấu hình.
 - Ví nội bộ, lịch sử đặt vé, vé điện tử và mã QR.
 - Danh sách yêu thích, đánh giá phim, thông báo.
@@ -70,7 +71,7 @@ Sau khi chạy `php setup.php`:
 - Quản lý ca trực: Admin phân công nhân viên theo thời gian, nhiệm vụ và phòng; hệ thống chặn các ca trùng giờ cho cùng một nhân viên. Nhân viên xem lịch cá nhân và đánh dấu hoàn thành.
 - Cảnh báo soát vé: lưu nhật ký mỗi lượt soát; phát hiện mã vé không tồn tại/không hợp lệ, quét trùng, nhiều lần quét thất bại trong 5 phút và lượt quét ngoài khung thời gian suất chiếu. Cảnh báo hiện tại màn hình Đơn vé & Soát vé.
 
-Các bảng cho ba nghiệp vụ mới được tạo idempotent từ `database/operational_features.sql` khi chạy `php setup.php`.
+Các bảng cho các nghiệp vụ mới được tạo idempotent từ các file `database/*_feature.sql` khi chạy `php setup.php`.
 
 ## 6. Ghi chú nghiệp vụ và giới hạn hiện tại
 

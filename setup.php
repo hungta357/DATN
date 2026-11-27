@@ -73,6 +73,12 @@ try {
     }
     $pdo->exec($operationalSql);
 
+    $authSecuritySql = file_get_contents(__DIR__ . '/database/auth_security_feature.sql');
+    if ($authSecuritySql === false) {
+        throw new RuntimeException('Không đọc được database/auth_security_feature.sql.');
+    }
+    $pdo->exec($authSecuritySql);
+
     // 3. Nạp dữ liệu mẫu từ seed_sample_data.sql
     $seedSql = file_get_contents(__DIR__ . '/database/seed_sample_data.sql');
     $pdo->exec($seedSql);
