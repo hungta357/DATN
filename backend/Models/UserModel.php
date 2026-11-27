@@ -14,20 +14,31 @@ class UserModel extends BaseModel
 
     public function findByEmail(string $email): ?array
     {
-        $this->ensureDedicatedAdmin();
+        // Chuẩn hóa email để tránh trường hợp đăng ký/đăng nhập khác chữ hoa-thường.
+        $email = trim($email);
 
-        // Cho phép đăng nhập admin bằng tên tài khoản "admin" hoặc email "admin@cinema.vn"
+        // Chỉ khởi tạo tài khoản quản trị khi thực sự đăng nhập bằng admin.
         if (strtolower($email) === 'admin') {
             $email = 'admin@cinema.vn';
         }
+        if (strtolower($email) === 'admin@cinema.vn') {
+            $this->ensureDedicatedAdmin();
+        }
 
-        $stmt = $this->db->prepare("SELECT * FROM users WHERE email = :email LIMIT 1");
+        $stmt = $this->db->prepare("SELECT * FROM users WHERE LOWER(email) = LOWER(:email) LIMIT 1");
         $stmt->execute(['email' => $email]);
         $user = $stmt->fetch();
         if ($user) {
             $user['roles'] = $this->getUserRoleNames((int) $user['id']);
         }
         return $user ?: null;
+    }
+
+    public function findByPhone(string $phone): bool
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM users WHERE phone = :phone LIMIT 1');
+        $stmt->execute(['phone' => trim($phone)]);
+        return (bool) $stmt->fetchColumn();
     }
 
     /**
@@ -100,44 +111,84 @@ class UserModel extends BaseModel
     {
         $this->db->beginTransaction();
         try {
-            $userId = $this->create([
-                'name' => $data['name'],
-                'email' => $data['email'],
-                'phone' => $data['phone'] ?? null,
-                'password' => password_hash($data['password'], PASSWORD_BCRYPT),
-                'status' => 'active',
-            ]);
+            $email = strtolower(trim((string) ($data['email'] ?? '')));
+            $phone = trim((string) ($data['phone'] ?? ''));
 
-            // Gán role customer mặc định
+            // Tạo role customer nếu database cũ chưa có dữ liệu role mặc định.
+            $this->db->exec("INSERT IGNORE INTO roles (name, display_name, description, created_at, updated_at) VALUES ('customer', 'Khach hang', 'Dat ve va su dung dich vu', NOW(), NOW())");
             $stmtRole = $this->db->prepare("SELECT id FROM roles WHERE name = 'customer' LIMIT 1");
             $stmtRole->execute();
             $role = $stmtRole->fetch();
-            if ($role) {
-                $stmtUr = $this->db->prepare("INSERT INTO user_roles (user_id, role_id, created_at) VALUES (:uid, :rid, NOW())");
-                $stmtUr->execute(['uid' => $userId, 'rid' => $role['id']]);
+            if (!$role) {
+                throw new \RuntimeException('Không tìm thấy vai trò Customer trong database.');
             }
 
-            // Tạo ví nội bộ (wallets) mặc định cho user
+            $passwordHash = password_hash((string) $data['password'], PASSWORD_DEFAULT);
+            if ($passwordHash === false) {
+                throw new \RuntimeException('Không thể mã hóa mật khẩu.');
+            }
+
+            $userId = $this->create([
+                'name' => trim((string) $data['name']),
+                'email' => $email,
+                'phone' => $phone !== '' ? $phone : null,
+                'password' => $passwordHash,
+                'status' => 'active',
+            ]);
+
+            // Gán quyền Customer bắt buộc; không báo đăng ký thành công nếu thiếu role.
+            $stmtUr = $this->db->prepare("INSERT INTO user_roles (user_id, role_id, created_at) VALUES (:uid, :rid, NOW())");
+            $stmtUr->execute(['uid' => $userId, 'rid' => (int) $role['id']]);
+
+            // Tạo ví nội bộ mặc định cho tài khoản mới.
             $stmtWallet = $this->db->prepare("INSERT INTO wallets (user_id, balance, currency, created_at, updated_at) VALUES (:uid, 0, 'VND', NOW(), NOW())");
             $stmtWallet->execute(['uid' => $userId]);
+
+            // Xác minh dữ liệu đã lưu trước khi commit để tránh báo thành công giả.
+            $stmtVerify = $this->db->prepare("SELECT password, status FROM users WHERE id = :id LIMIT 1");
+            $stmtVerify->execute(['id' => $userId]);
+            $savedUser = $stmtVerify->fetch();
+            if (!$savedUser || $savedUser['status'] !== 'active' || !password_verify((string) $data['password'], $savedUser['password'])) {
+                throw new \RuntimeException('Không xác minh được tài khoản vừa tạo.');
+            }
 
             $this->db->commit();
             return $userId;
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             throw $e;
         }
     }
 
     public function getAllUsersWithRoles(): array
     {
-        $sql = "SELECT u.*, GROUP_CONCAT(r.display_name SEPARATOR ', ') AS role_names
+        $sql = "SELECT u.*,
+                       GROUP_CONCAT(r.display_name SEPARATOR ', ') AS role_names,
+                       GROUP_CONCAT(r.name SEPARATOR ',') AS role_codes
                 FROM users u
                 LEFT JOIN user_roles ur ON ur.user_id = u.id
                 LEFT JOIN roles r ON r.id = ur.role_id
                 GROUP BY u.id
                 ORDER BY u.id DESC";
         return $this->db->query($sql)->fetchAll();
+    }
+
+    public function updateUserRole(int $userId, string $roleName): void
+    {
+        if (!in_array($roleName, ['admin', 'staff', 'customer'], true)) {
+            return;
+        }
+        $stmtRole = $this->db->prepare("SELECT id FROM roles WHERE name = :name LIMIT 1");
+        $stmtRole->execute(['name' => $roleName]);
+        $roleId = $stmtRole->fetchColumn();
+        if (!$roleId) {
+            return;
+        }
+        $this->db->prepare("DELETE FROM user_roles WHERE user_id = :uid")->execute(['uid' => $userId]);
+        $this->db->prepare("INSERT IGNORE INTO user_roles (user_id, role_id, created_at) VALUES (:uid, :rid, NOW())")
+                 ->execute(['uid' => $userId, 'rid' => (int) $roleId]);
     }
 
     public function getCinemaInfo(): array

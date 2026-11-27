@@ -366,11 +366,19 @@ $headerCinema = $cinemaInfo ?? $userModelHeader->getCinemaInfo();
         </div>
         <div class="d-flex align-items-center gap-3">
             <?php if (!empty($_SESSION['user'])): ?>
+                <?php if (!empty($_SESSION['user']['roles']) && array_intersect(['admin', 'staff'], $_SESSION['user']['roles'])): ?>
+                    <a href="?route=admin" class="text-warning fw-bold"><i class="bi bi-shield-lock-fill me-1"></i>Quản trị</a>
+                    <span>|</span>
+                <?php endif; ?>
                 <a href="?route=booking/my"><i class="bi bi-ticket-perforated me-1"></i>Vé của tôi</a>
+                <span>|</span>
+                <a href="?route=booking/group"><i class="bi bi-people me-1"></i>Đặt vé nhóm</a>
                 <span>|</span>
                 <a href="?route=wallet"><i class="bi bi-wallet2 me-1"></i>Ví CineNow</a>
                 <span>|</span>
                 <a href="?route=wishlist"><i class="bi bi-heart me-1"></i>Yêu thích</a>
+                <span>|</span>
+                <a href="?route=incidents"><i class="bi bi-chat-square-text me-1"></i>Hỗ trợ</a>
                 <span>|</span>
                 <a href="?route=notifications"><i class="bi bi-bell me-1"></i>Thông báo</a>
                 <span aria-hidden="true">|</span>

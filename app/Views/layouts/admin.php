@@ -268,12 +268,12 @@ $cinemaName = $cinemaInfo['name'] ?? 'CineNow';
                     <i class="bi bi-calendar2-check"></i> Ca trực & nhân sự
                 </a>
             </li>
+            <?php if (!empty($isAdmin)): ?>
             <li>
                 <a href="?route=admin&tab=groups" class="admin-nav-link <?= $currentTab === 'groups' ? 'active' : '' ?>">
                     <i class="bi bi-people"></i> Đặt vé nhóm
                 </a>
             </li>
-            <?php if (!empty($isAdmin)): ?>
             <li>
                 <a href="?route=admin&tab=concessions" class="admin-nav-link <?= $currentTab === 'concessions' ? 'active' : '' ?>">
                     <i class="bi bi-cup-straw"></i> Bắp nước & Mã giảm giá

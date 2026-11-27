@@ -252,6 +252,25 @@ class ShowModel extends BaseModel
 
         $this->db->beginTransaction();
         try {
+            $oldRoomId = (int) $existing['room_id'];
+            if ($roomId !== $oldRoomId) {
+                $stmtActiveBookings = $this->db->prepare("
+                    SELECT COUNT(*) FROM bookings
+                    WHERE show_id = :show_id AND status IN ('confirmed', 'pending')
+                ");
+                $stmtActiveBookings->execute(['show_id' => $showId]);
+                if ((int) $stmtActiveBookings->fetchColumn() > 0) {
+                    throw new Exception('Không thể đổi phòng chiếu cho suất chiếu đã có khách đặt vé.');
+                }
+
+                $stmtRoom = $this->db->prepare('SELECT id, status FROM rooms WHERE id = :room_id FOR UPDATE');
+                $stmtRoom->execute(['room_id' => $roomId]);
+                $newRoom = $stmtRoom->fetch();
+                if (!$newRoom || $newRoom['status'] !== 'active') {
+                    throw new Exception('Phòng chiếu mới không tồn tại hoặc đang bảo trì.');
+                }
+            }
+
             if ($status !== 'cancelled') {
                 $stmtOverlap = $this->db->prepare("
                     SELECT id
@@ -288,6 +307,12 @@ class ShowModel extends BaseModel
             $roomModel = new RoomModel();
             if (empty($roomModel->getRoomSeats($roomId))) {
                 $roomModel->generateDefaultSeatsForRoom($roomId);
+            }
+
+            // Nếu đổi sang phòng mới (khi chưa có đơn active), xóa show_seats của phòng cũ
+            if ($roomId !== $oldRoomId) {
+                $this->db->prepare("DELETE FROM bookings WHERE show_id = :show_id AND status IN ('cancelled', 'expired')")->execute(['show_id' => $showId]);
+                $this->db->prepare("DELETE FROM show_seats WHERE show_id = :show_id")->execute(['show_id' => $showId]);
             }
 
             $stmtInsertMissing = $this->db->prepare("
@@ -642,9 +667,55 @@ class ShowModel extends BaseModel
             }
 
             foreach ($seats as $seat) {
-                if ($seat['status'] !== 'available') {
+                $isAvailable = $seat['status'] === 'available';
+                $isHeldBySameUser = $seat['status'] === 'held' && (int) $seat['held_by_user_id'] === $userId;
+                if (!$isAvailable && !$isHeldBySameUser) {
                     throw new Exception("Ghế {$seat['seat_code']} đã có người chọn hoặc không còn trống.");
                 }
+            }
+
+            // Nếu chính user này đang giữ ghế trong một đơn pending cũ chưa thanh toán, chuyển đơn cũ đó sang expired để giải phóng show_seat_id
+            $stmtOldPending = $this->db->prepare("
+                SELECT DISTINCT b.id
+                FROM bookings b
+                INNER JOIN booking_details bd ON bd.booking_id = b.id
+                WHERE b.user_id = ? AND b.status = 'pending' AND bd.show_seat_id IN ({$placeholders})
+                FOR UPDATE
+            ");
+            $stmtOldPending->execute(array_merge([$userId], array_map('intval', $showSeatIds)));
+            $oldPendingIds = array_values(array_unique(array_map('intval', $stmtOldPending->fetchAll(\PDO::FETCH_COLUMN))));
+            if (!empty($oldPendingIds)) {
+                $oldPh = implode(',', array_fill(0, count($oldPendingIds), '?'));
+                $this->db->prepare("UPDATE bookings SET status = 'expired', updated_at = NOW() WHERE id IN ({$oldPh})")->execute($oldPendingIds);
+                $this->db->prepare("
+                    UPDATE show_seats ss
+                    INNER JOIN booking_details bd ON bd.show_seat_id = ss.id
+                    SET ss.status = 'available', ss.held_by_user_id = NULL, ss.hold_expires_at = NULL, ss.updated_at = NOW()
+                    WHERE bd.booking_id IN ({$oldPh}) AND ss.status = 'held'
+                ")->execute($oldPendingIds);
+                $this->db->prepare("
+                    UPDATE concessions c
+                    INNER JOIN (
+                        SELECT concession_id, SUM(quantity) AS quantity
+                        FROM booking_concessions
+                        WHERE booking_id IN ({$oldPh})
+                        GROUP BY concession_id
+                    ) expired_items ON expired_items.concession_id = c.id
+                    SET c.stock = c.stock + expired_items.quantity, c.updated_at = NOW()
+                ")->execute($oldPendingIds);
+                $this->db->prepare("
+                    UPDATE coupons c
+                    INNER JOIN (
+                        SELECT coupon_id, COUNT(*) AS usage_count
+                        FROM coupon_usages
+                        WHERE booking_id IN ({$oldPh})
+                        GROUP BY coupon_id
+                    ) expired_usage ON expired_usage.coupon_id = c.id
+                    SET c.used_count = GREATEST(c.used_count - expired_usage.usage_count, 0),
+                        c.updated_at = NOW()
+                ")->execute($oldPendingIds);
+                $this->db->prepare("DELETE FROM coupon_usages WHERE booking_id IN ({$oldPh})")->execute($oldPendingIds);
+                $this->db->prepare("DELETE FROM booking_details WHERE booking_id IN ({$oldPh})")->execute($oldPendingIds);
             }
 
             $holdMinutes = max(1, min(30, $holdMinutes));

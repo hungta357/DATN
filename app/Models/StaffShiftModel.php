@@ -7,6 +7,32 @@ use App\Core\BaseModel;
 class StaffShiftModel extends BaseModel
 {
     protected string $table = 'staff_shifts';
+    private static bool $schemaEnsured = false;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->ensureSchema();
+    }
+
+    private function ensureSchema(): void
+    {
+        if (self::$schemaEnsured) {
+            return;
+        }
+        self::$schemaEnsured = true;
+        try {
+            $sqlFile = dirname(__DIR__, 2) . '/database/operational_features.sql';
+            if (is_file($sqlFile)) {
+                $sql = file_get_contents($sqlFile);
+                if ($sql !== false) {
+                    $this->db->exec($sql);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[StaffShiftModel::ensureSchema] ' . $e->getMessage());
+        }
+    }
 
     /**
      * Lấy lịch ca kèm tên nhân viên và phòng; nhân viên chỉ được nhận lịch của mình,

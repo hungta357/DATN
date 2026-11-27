@@ -7,15 +7,42 @@ use App\Core\BaseModel;
 class IncidentModel extends BaseModel
 {
     protected string $table = 'incident_reports';
+    private static bool $schemaEnsured = false;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->ensureSchema();
+    }
+
+    private function ensureSchema(): void
+    {
+        if (self::$schemaEnsured) {
+            return;
+        }
+        self::$schemaEnsured = true;
+        try {
+            foreach (['operational_features.sql', 'group_booking_feature.sql'] as $fileName) {
+                $sqlFile = dirname(__DIR__, 2) . '/database/' . $fileName;
+                if (is_file($sqlFile)) {
+                    $sql = file_get_contents($sqlFile);
+                    if ($sql !== false) {
+                        $this->db->exec($sql);
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[IncidentModel::ensureSchema] ' . $e->getMessage());
+        }
+    }
 
     /**
-     * Lấy danh sách vé đã thanh toán của khách để biểu mẫu chỉ cho phép khiếu nại
-     * vé thuộc chính tài khoản đó; có thể giới hạn theo đơn được chọn trên trang vé.
+     * Lấy danh sách vé đã thanh toán của khách (bao gồm cả vé trong nhóm đặt vé mà khách là thành viên).
      */
     public function getCustomerTickets(int $userId, ?int $bookingId = null): array
     {
         $sql = "
-            SELECT t.id AS ticket_id, t.ticket_code, t.status AS ticket_status,
+            SELECT DISTINCT t.id AS ticket_id, t.ticket_code, t.status AS ticket_status,
                    b.id AS booking_id, m.title AS movie_title, r.name AS room_name,
                    sh.start_time, s.seat_code
             FROM tickets t
@@ -26,11 +53,16 @@ class IncidentModel extends BaseModel
             INNER JOIN movies m ON m.id = sh.movie_id
             INNER JOIN rooms r ON r.id = sh.room_id
             INNER JOIN seats s ON s.id = ss.seat_id
-            WHERE b.user_id = :user_id
+            LEFT JOIN group_bookings gb ON gb.booking_id = b.id
+            LEFT JOIN group_members gm ON gm.group_id = gb.id AND gm.user_id = :member_user_id
+            WHERE (b.user_id = :user_id OR gm.user_id IS NOT NULL)
               AND b.status IN ('confirmed', 'cancelled', 'refunded')
               AND t.status IN ('valid', 'used', 'cancelled', 'refunded')
         ";
-        $params = ['user_id' => $userId];
+        $params = [
+            'user_id' => $userId,
+            'member_user_id' => $userId,
+        ];
         if ($bookingId !== null) {
             $sql .= ' AND b.id = :booking_id';
             $params['booking_id'] = $bookingId;
@@ -62,15 +94,21 @@ class IncidentModel extends BaseModel
                    assignee.name AS assignee_name, m.title AS movie_title
             FROM incident_reports ir
             LEFT JOIN tickets t ON t.id = ir.ticket_id
-            INNER JOIN users reporter ON reporter.id = ir.reported_by
+            LEFT JOIN users reporter ON reporter.id = ir.reported_by
             LEFT JOIN users assignee ON assignee.id = ir.assigned_to
             LEFT JOIN booking_details bd ON bd.id = t.booking_detail_id
             LEFT JOIN bookings b ON b.id = bd.booking_id
             LEFT JOIN shows sh ON sh.id = b.show_id
             LEFT JOIN movies m ON m.id = sh.movie_id
             {$where}
-            ORDER BY FIELD(ir.status, 'open', 'in_review', 'resolved', 'rejected'),
-                     ir.created_at DESC
+            ORDER BY CASE ir.status
+                WHEN 'open' THEN 1
+                WHEN 'in_review' THEN 2
+                WHEN 'resolved' THEN 3
+                WHEN 'rejected' THEN 4
+                ELSE 5
+            END ASC,
+            ir.created_at DESC
         ");
         $stmt->execute($params);
         return $stmt->fetchAll();
@@ -90,13 +128,19 @@ class IncidentModel extends BaseModel
             FROM tickets t
             INNER JOIN booking_details bd ON bd.id = t.booking_detail_id
             INNER JOIN bookings b ON b.id = bd.booking_id
+            LEFT JOIN group_bookings gb ON gb.booking_id = b.id
+            LEFT JOIN group_members gm ON gm.group_id = gb.id AND gm.user_id = :member_user_id
             WHERE t.ticket_code = :ticket_code
-              AND b.user_id = :user_id
+              AND (b.user_id = :user_id OR gm.user_id IS NOT NULL)
               AND b.status IN ('confirmed', 'cancelled', 'refunded')
               AND t.status IN ('valid', 'used', 'cancelled', 'refunded')
             LIMIT 1
         ");
-        $stmtTicket->execute(['ticket_code' => $ticketCode, 'user_id' => $userId]);
+        $stmtTicket->execute([
+            'ticket_code' => $ticketCode,
+            'user_id' => $userId,
+            'member_user_id' => $userId,
+        ]);
         $ticketId = $stmtTicket->fetchColumn();
         if ($ticketId === false) {
             throw new \InvalidArgumentException('Không tìm thấy vé hợp lệ thuộc tài khoản của bạn.');
@@ -126,28 +170,36 @@ class IncidentModel extends BaseModel
                 FROM users u
                 INNER JOIN user_roles ur ON ur.user_id = u.id
                 INNER JOIN roles r ON r.id = ur.role_id
-                WHERE u.id = :id AND u.status = 'active' AND r.name = 'staff'
+                WHERE u.id = :id AND u.status = 'active' AND r.name IN ('staff', 'admin')
                 LIMIT 1
             ");
             $stmtStaff->execute(['id' => $staffId]);
             if (!$stmtStaff->fetchColumn()) {
-                throw new \InvalidArgumentException('Chỉ có thể phân công cho nhân viên đang hoạt động.');
+                throw new \InvalidArgumentException('Chỉ có thể phân công cho nhân viên hoặc quản trị viên đang hoạt động.');
             }
 
-            $stmtExists = $this->db->prepare('SELECT id FROM incident_reports WHERE id = :id FOR UPDATE');
+            $stmtExists = $this->db->prepare('SELECT id, status FROM incident_reports WHERE id = :id FOR UPDATE');
             $stmtExists->execute(['id' => $reportId]);
-            if (!$stmtExists->fetchColumn()) {
+            $existingReport = $stmtExists->fetch();
+            if (!$existingReport) {
                 throw new \InvalidArgumentException('Không tìm thấy khiếu nại cần phân công.');
             }
 
+            $nextStatus = in_array($existingReport['status'], ['resolved', 'rejected'], true)
+                ? $existingReport['status']
+                : 'in_review';
             $stmtReport = $this->db->prepare("
                 UPDATE incident_reports
                 SET assigned_to = :staff_id,
-                    status = IF(status IN ('resolved', 'rejected'), status, 'in_review'),
+                    status = :next_status,
                     updated_at = NOW()
                 WHERE id = :id
             ");
-            $stmtReport->execute(['staff_id' => $staffId, 'id' => $reportId]);
+            $stmtReport->execute([
+                'staff_id' => $staffId,
+                'next_status' => $nextStatus,
+                'id' => $reportId,
+            ]);
             $this->db->commit();
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
@@ -212,7 +264,7 @@ class IncidentModel extends BaseModel
             FROM users u
             INNER JOIN user_roles ur ON ur.user_id = u.id
             INNER JOIN roles r ON r.id = ur.role_id
-            WHERE u.status = 'active' AND r.name = 'staff'
+            WHERE u.status = 'active' AND r.name IN ('staff', 'admin')
             ORDER BY u.name
         ")->fetchAll();
     }

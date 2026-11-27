@@ -30,6 +30,18 @@ class EngagementModel extends BaseModel
         return $this->db->query("SELECT * FROM coupons ORDER BY id DESC")->fetchAll();
     }
 
+    public function getActiveCoupons(): array
+    {
+        return $this->db->query("
+            SELECT * FROM coupons
+            WHERE status = 'active'
+              AND (starts_at IS NULL OR starts_at <= NOW())
+              AND (expires_at IS NULL OR expires_at >= NOW())
+              AND (usage_limit IS NULL OR used_count < usage_limit)
+            ORDER BY id DESC
+        ")->fetchAll();
+    }
+
     public function validateCoupon(string $code, float $orderAmount): array
     {
         $stmt = $this->db->prepare("SELECT * FROM coupons WHERE code = :code AND status = 'active' LIMIT 1 FOR UPDATE");

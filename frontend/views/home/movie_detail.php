@@ -18,8 +18,9 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
             <div class="col-md-4 col-lg-3">
                 <div class="beta-poster-wrap">
                     <span class="beta-age-badge <?= $ageClass ?>"><?= htmlspecialchars($age) ?></span>
-                    <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=600') ?>"
-                         alt="<?= htmlspecialchars($movie['title']) ?>">
+                    <img src="<?= htmlspecialchars($movie['poster_path'] ?: 'public/images/posters/dune-part-two.svg') ?>"
+                         alt="<?= htmlspecialchars($movie['title']) ?>"
+                         onerror="this.onerror=null;this.src='public/images/posters/dune-part-two.svg';">
                 </div>
                 <?php if (!empty($movie['trailer_url'])): ?>
                     <button type="button" class="btn btn-warning w-100 btn-sm fw-bold mt-2 text-dark" data-bs-toggle="modal" data-bs-target="#trailerModal">
@@ -27,6 +28,7 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
                     </button>
                 <?php endif; ?>
                 <form method="POST" action="?route=wishlist/toggle" class="mt-2">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                     <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
                     <button type="submit" class="btn btn-outline-danger w-100 btn-sm fw-semibold">
                         <i class="bi bi-heart-fill me-1"></i> Lưu vào Phim Yêu Thích
@@ -81,6 +83,7 @@ elseif (str_contains($age, '18')) $ageClass = 'age-T18';
         </h5>
         <?php if (!empty($_SESSION['user'])): ?>
             <form method="POST" action="?route=movie/review" class="mb-4 pb-3 border-bottom">
+<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="movie_id" value="<?= (int) $movie['id'] ?>">
                 <div class="row g-2">
                     <div class="col-md-3">

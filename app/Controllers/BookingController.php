@@ -39,7 +39,7 @@ class BookingController extends BaseController
 
         $showSeats = $showModel->getShowSeats($showId);
         $concessions = $engagementModel->getActiveConcessions();
-        $coupons = $engagementModel->getAllCoupons();
+        $coupons = $engagementModel->getActiveCoupons();
 
         $this->view('booking/select_seats', [
             'pageTitle' => 'Chọn ghế - ' . $show['movie_title'],

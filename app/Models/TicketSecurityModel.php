@@ -7,6 +7,32 @@ use App\Core\BaseModel;
 class TicketSecurityModel extends BaseModel
 {
     protected string $table = 'ticket_scan_logs';
+    private static bool $schemaEnsured = false;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->ensureSchema();
+    }
+
+    private function ensureSchema(): void
+    {
+        if (self::$schemaEnsured) {
+            return;
+        }
+        self::$schemaEnsured = true;
+        try {
+            $sqlFile = dirname(__DIR__, 2) . '/database/operational_features.sql';
+            if (is_file($sqlFile)) {
+                $sql = file_get_contents($sqlFile);
+                if ($sql !== false) {
+                    $this->db->exec($sql);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[TicketSecurityModel::ensureSchema] ' . $e->getMessage());
+        }
+    }
 
     /**
      * Soát vé trong transaction, khóa dòng vé để ngăn quét đồng thời; mọi lần từ
