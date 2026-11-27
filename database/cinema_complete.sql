@@ -8,6 +8,8 @@ CREATE DATABASE IF NOT EXISTS cinema_complete
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE cinema_complete;
 
+
+
 -- 1. ROLES / USERS
 CREATE TABLE roles (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

@@ -1,4 +1,40 @@
+<!-- Lấy mốc thời gian hết hạn và Kiểm tra hết hạn & trạng thái hoạt động để tạo đồng hồ -->
+<?php
+$expiresAtRaw = $booking['expires_at']
+    ?? ($booking['seats'][0]['hold_expires_at'] ?? '');
+
+if (empty($expiresAtRaw) && !empty($booking['booking_time'])) {
+    $expiresAtRaw = date('Y-m-d H:i:s', strtotime($booking['booking_time']) + 600);
+}
+
+$isExpiredByTime = !empty($expiresAtRaw) && strtotime($expiresAtRaw) <= time();
+$isPendingActive = ($booking['status'] === 'pending') && !$isExpiredByTime;
+?>
+
+
 <div class="container py-4">
+    <?php if ($booking['status'] === 'pending'): ?>
+        <div id="hold-countdown-banner"
+             class="alert <?= $isExpiredByTime ? 'alert-secondary' : 'alert-danger' ?> d-flex flex-wrap align-items-center justify-content-between gap-2 rounded-4 shadow-sm mb-4 px-4 py-3"
+             style="border-left: 6px solid #dc3545;">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-alarm-fill fs-4 text-danger"></i>
+                <div>
+                    <div class="fw-bold text-danger">THỜI GIAN GIỮ GHẾ CÒN LẠI</div>
+                    <div class="small text-dark">Vui lòng hoàn tất thanh toán trước khi hết giờ để tránh bị hủy giữ chỗ.</div>
+                </div>
+            </div>
+            <div class="text-end">
+                <span id="countdown-timer"
+                      class="badge bg-danger text-white fs-4 px-3 py-2 font-monospace"
+                      data-expires-at="<?= htmlspecialchars($expiresAtRaw, ENT_QUOTES, 'UTF-8') ?>">
+                    <?= $isExpiredByTime ? '00:00' : '10:00' ?>
+                </span>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <!-- Giao diện khung đếm ngược -->
     <div class="row g-4">
         <div class="col-lg-7">
             <div class="card border-0 shadow-sm bg-white rounded-4 mb-4">
@@ -6,8 +42,8 @@
                     <span class="oswald-font fs-5 fw-bold" style="color: var(--beta-blue);">
                         <i class="bi bi-ticket-detailed text-danger me-1"></i> ĐƠN ĐẶT VÉ #<?= htmlspecialchars($booking['booking_code']) ?>
                     </span>
-                    <span class="badge <?= $booking['status'] === 'confirmed' ? 'bg-success' : ($booking['status'] === 'pending' ? 'bg-warning text-dark' : 'bg-secondary') ?>">
-                        <?= strtoupper($booking['status']) ?>
+                    <span class="badge <?= $booking['status'] === 'confirmed' ? 'bg-success' : ($isPendingActive ? 'bg-warning text-dark' : 'bg-secondary') ?>">
+                        <?= $isExpiredByTime && $booking['status'] === 'pending' ? 'EXPIRED' : strtoupper($booking['status']) ?>
                     </span>
                 </div>
                 <div class="card-body p-4">
@@ -62,7 +98,7 @@
         </div>
 
         <div class="col-lg-5">
-            <?php if ($booking['status'] === 'pending'): ?>
+            <?php if ($isPendingActive): ?>
                 <div class="card border-0 shadow-sm bg-white rounded-4 overflow-hidden">
                     <div class="p-3 text-white oswald-font fs-5 text-uppercase" style="background: var(--beta-gradient);">
                         <i class="bi bi-credit-card me-1"></i> CHỌN PHƯƠNG THỨC THANH TOÁN
@@ -74,8 +110,8 @@
                             <a href="?route=wallet" class="ms-2 fw-bold">[Nạp thêm]</a>
                         </div>
 
-                        <form method="POST" action="?route=booking/pay">
-<input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        <form id="checkout-payment-form" method="POST" action="?route=booking/pay">
+                            <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <input type="hidden" name="booking_id" value="<?= (int) $booking['id'] ?>">
                             <?php foreach ($paymentMethods as $idx => $pm): ?>
                                 <div class="form-check mb-2 p-3 border rounded-3 bg-light">
@@ -91,7 +127,7 @@
                                 </div>
                             <?php endforeach; ?>
 
-                            <button type="submit" class="btn btn-beta-buy w-100 py-2 mt-3">
+                            <button id="btn-pay-submit" type="submit" class="btn btn-beta-buy w-100 py-2 mt-3">
                                 <i class="bi bi-check2-circle me-1"></i> XÁC NHẬN THANH TOÁN & NHẬN VÉ QR
                             </button>
                         </form>
@@ -135,3 +171,51 @@
         </div>
     </div>
 </div>
+
+<!-- Tạo bộ đếm ngược 10 phút thanh toán bằng JS -->
+<?php if ($booking['status'] === 'pending'): ?>
+<script>
+(function () {
+    const timerEl = document.getElementById('countdown-timer');
+    const bannerEl = document.getElementById('hold-countdown-banner');
+    const submitBtn = document.getElementById('btn-pay-submit');
+    if (!timerEl) return;
+
+    const rawExpires = (timerEl.dataset.expiresAt || '').trim();
+    const targetMs = rawExpires
+        ? new Date(rawExpires.replace(' ', 'T')).getTime()
+        : (Date.now() + 10 * 60 * 1000);
+
+    function tick() {
+        const diffSec = Math.floor((targetMs - Date.now()) / 1000);
+        if (diffSec <= 0) {
+            timerEl.textContent = '00:00';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.classList.add('disabled', 'opacity-50');
+            }
+            if (bannerEl) {
+                bannerEl.classList.remove('alert-danger');
+                bannerEl.classList.add('alert-secondary');
+                bannerEl.innerHTML = `
+                    <div class="d-flex align-items-center gap-2 text-danger fw-bold">
+                        <i class="bi bi-x-circle-fill fs-5"></i>
+                        <span>Đã hết thời gian giữ ghế! Vui lòng quay lại trang chọn ghế để đặt lại.</span>
+                    </div>
+                    <a href="?route=schedule" class="btn btn-sm btn-danger fw-bold">Chọn suất chiếu khác</a>
+                `;
+            }
+            clearInterval(timerId);
+            return;
+        }
+
+        const mins = Math.floor(diffSec / 60);
+        const secs = diffSec % 60;
+        timerEl.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+    }
+
+    tick();
+    const timerId = setInterval(tick, 1000);
+})();
+</script>
+<?php endif; ?>

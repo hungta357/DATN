@@ -83,7 +83,6 @@ class BookingController extends BaseController
                 $note ?: null
             );
 
-            $this->setFlash('success', 'Đã giữ ghế trong 10 phút! Vui lòng hoàn tất thanh toán.');
             $this->redirect('?route=booking/checkout&id=' . $booking['id']);
         } catch (\Throwable $e) {
             $this->setFlash('danger', $e->getMessage());
